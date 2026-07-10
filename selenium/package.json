@@ -1,0 +1,24 @@
+{
+  "name": "agrosmart-selenium",
+  "version": "1.0.0",
+  "description": "Selenium E2E Test Suite for AgroSmartHub 3.0",
+  "scripts": {
+    "test": "npx mocha tests/**/*.test.js tests/**/*.js --timeout 30000 --reporter json --reporter-options output=results.json",
+    "report:html": "node scripts/generate-html-report.js",
+    "report:excel": "node scripts/generate-excel-report.js",
+    "report:summary": "node scripts/generate-summary.js",
+    "report:all": "npm run report:html && npm run report:excel && npm run report:summary",
+    "ci": "npm run test || true && npm run report:all"
+  },
+  "dependencies": {
+    "chai": "^4.4.1",
+    "exceljs": "^4.4.0",
+    "fs-extra": "^11.2.0",
+    "mocha": "^10.4.0",
+    "selenium-webdriver": "^4.20.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}

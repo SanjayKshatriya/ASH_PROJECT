@@ -1,0 +1,6 @@
+# E2E Test Project — .gitignore
+node_modules/
+allure-results/
+allure-report/
+appium-stdout.log
+appium-stderr.log

@@ -1,0 +1,98 @@
+name: Deploy to GitHub Pages & Run Live E2E Tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  # 1. Deploy the frontend to GitHub Pages
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Only upload the static frontend files (exclude backend, e2e, selenium etc)
+      # Since index.html is at root, we just upload the whole root but we can't easily filter upload-pages-artifact
+      # Instead we'll copy the frontend files to a build directory
+      - name: Prepare static files for deployment
+        run: |
+          mkdir public_html
+          cp index.html app.html public_html/
+          cp -r css js public_html/
+          # Copy any other frontend assets here (e.g. images if added later)
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './public_html'
+          
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # 2. Run Selenium tests against the deployed URL
+  selenium-e2e:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Install Selenium dependencies
+        working-directory: ./selenium
+        run: npm install
+
+      # Wait for the deployed site to be fully available and return HTTP 200
+      - name: Wait for GitHub Pages Deployment
+        run: |
+          echo "Waiting for live URL to be available: ${{ needs.deploy.outputs.page_url }}"
+          timeout 60 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' ${{ needs.deploy.outputs.page_url }})" != "200" ]]; do sleep 2; done' || false
+          
+      - name: Run Selenium Tests (Headless)
+        working-directory: ./selenium
+        env:
+          BASE_URL: ${{ needs.deploy.outputs.page_url }}
+        run: |
+          # Create Test Results dirs
+          mkdir -p "../Test Results/HTML"
+          mkdir -p "../Test Results/Excel"
+          mkdir -p "../Test Results/Summary"
+          mkdir -p "../Test Results/Screenshots"
+          
+          # Run tests and generate reports (ci script in package.json runs tests and report:all)
+          npm run ci
+          
+      - name: Upload Test Results Artifacts
+        if: always() # Upload artifacts even if tests fail
+        uses: actions/upload-artifact@v4
+        with:
+          name: Selenium-Test-Results
+          path: Test Results/

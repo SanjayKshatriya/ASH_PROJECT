@@ -1,0 +1,10 @@
+# Test Results — gitignore
+# Keep folder structure but ignore generated files
+HTML/*.html
+Excel/*.xlsx
+Screenshots/*.png
+Logs/*.log
+Summary/*.md
+# Keep this .gitignore and the README
+!.gitignore
+!README.md

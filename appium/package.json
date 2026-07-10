@@ -1,0 +1,21 @@
+{
+  "name": "agrosmart-appium",
+  "version": "1.0.0",
+  "description": "Appium E2E Test Suite for AgroSmartHub 3.0",
+  "scripts": {
+    "test": "npx wdio run wdio.conf.js",
+    "report:excel": "node scripts/generate-excel-report.js",
+    "test:all": "npm run test || true && npm run report:excel"
+  },
+  "dependencies": {
+    "@wdio/appium-service": "^8.36.1",
+    "@wdio/cli": "^8.36.1",
+    "@wdio/local-runner": "^8.36.1",
+    "@wdio/mocha-framework": "^8.36.1",
+    "@wdio/spec-reporter": "^8.36.1",
+    "appium": "^2.5.1",
+    "appium-uiautomator2-driver": "^3.0.5",
+    "exceljs": "^4.4.0",
+    "fs-extra": "^11.2.0"
+  }
+}

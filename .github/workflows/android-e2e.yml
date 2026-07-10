@@ -1,0 +1,391 @@
+# ============================================================
+# AgroSmartHub 3.0 — Android Appium E2E CI/CD Pipeline
+# Runs tests → Generates Reports → Publishes to GitHub Pages
+# ============================================================
+
+name: Android Appium E2E Tests
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      android_api:
+        description: 'Android API Level (e.g. 33)'
+        required: false
+        default: '33'
+      log_level:
+        description: 'WDIO Log Level (trace/debug/info/warn/error)'
+        required: false
+        default: 'warn'
+
+# Allow only one concurrent deployment per ref
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '18'
+  JAVA_VERSION: '17'
+  ANDROID_API: ${{ github.event.inputs.android_api || '33' }}
+  ANDROID_ABI: 'x86_64'
+  ANDROID_TARGET: 'google_apis'
+  EMULATOR_NAME: 'e2e-emulator'
+  LOG_LEVEL: ${{ github.event.inputs.log_level || 'warn' }}
+
+jobs:
+  # ──────────────────────────────────────────────────────────
+  e2e-tests:
+    name: 🤖 Run Appium E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      # ─── 1. Checkout ──────────────────────────────────────
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ─── 2. Enable KVM (hardware acceleration for emulator) ─
+      - name: ⚡ Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo apt-get install -y cpu-checker
+          sudo kvm-ok || echo "KVM not available — falling back to software rendering"
+
+      # ─── 3. Setup Java ────────────────────────────────────
+      - name: ☕ Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+
+      # ─── 4. Setup Android SDK ─────────────────────────────
+      - name: 🤖 Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # ─── 5. Cache Android SDK Components ─────────────────
+      - name: 💾 Cache Android SDK
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+            ~/.android/debug.keystore
+          key: avd-api${{ env.ANDROID_API }}-${{ env.ANDROID_ABI }}-${{ env.ANDROID_TARGET }}-v2
+
+      # ─── 6. Install Android Emulator Components ────────────
+      - name: 📦 Install Android Emulator & System Image
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "y" | sdkmanager \
+            "platform-tools" \
+            "emulator" \
+            "platforms;android-${{ env.ANDROID_API }}" \
+            "system-images;android-${{ env.ANDROID_API }};${{ env.ANDROID_TARGET }};${{ env.ANDROID_ABI }}"
+
+      # ─── 7. Create AVD ────────────────────────────────────
+      - name: 🏗 Create Android Virtual Device (AVD)
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "no" | avdmanager create avd \
+            --force \
+            --name "${{ env.EMULATOR_NAME }}" \
+            --abi "${{ env.ANDROID_TARGET }}/${{ env.ANDROID_ABI }}" \
+            --package "system-images;android-${{ env.ANDROID_API }};${{ env.ANDROID_TARGET }};${{ env.ANDROID_ABI }}"
+
+      # ─── 8. Start Android Emulator ────────────────────────
+      - name: 📱 Start Android Emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.ANDROID_API }}
+          target: ${{ env.ANDROID_TARGET }}
+          arch: ${{ env.ANDROID_ABI }}
+          avd-name: ${{ env.EMULATOR_NAME }}
+          emulator-options: >
+            -no-snapshot-save
+            -no-window
+            -gpu swiftshader_indirect
+            -noaudio
+            -no-boot-anim
+            -camera-back none
+          disable-animations: true
+          script: echo "Emulator started successfully"
+
+      # ─── 9. Setup Node.js ─────────────────────────────────
+      - name: 🟢 Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: e2e/package.json
+
+      # ─── 10. Cache Node Modules ───────────────────────────
+      - name: 💾 Cache E2E node_modules
+        uses: actions/cache@v4
+        id: e2e-node-cache
+        with:
+          path: e2e/node_modules
+          key: e2e-node-${{ runner.os }}-${{ hashFiles('e2e/package.json') }}
+          restore-keys: e2e-node-${{ runner.os }}-
+
+      # ─── 11. Install Backend Dependencies ─────────────────
+      - name: 📦 Install Backend Dependencies
+        run: npm ci
+        working-directory: backend
+
+      # ─── 12. Start Backend Server ─────────────────────────
+      - name: 🚀 Start AgroSmartHub Backend
+        run: |
+          # Create minimal .env for CI
+          cat > backend/.env << 'EOF'
+          NODE_ENV=test
+          PORT=5000
+          JWT_SECRET=ci-test-secret-key-32chars-minimum
+          SUPABASE_URL=https://placeholder.supabase.co
+          SUPABASE_ANON_KEY=placeholder_key
+          EOF
+
+          nohup node backend/server.js > backend-server.log 2>&1 &
+          echo "Backend PID: $!" >> $GITHUB_ENV
+          echo "BACKEND_PID=$!" >> $GITHUB_ENV
+
+          # Wait for backend to be ready
+          echo "Waiting for backend to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:5000/api/health > /dev/null 2>&1; then
+              echo "✅ Backend is ready (attempt $i)"
+              break
+            fi
+            echo "  ⏳ Attempt $i/30 — waiting..."
+            sleep 2
+          done
+
+      # ─── 13. Verify Emulator Ready ────────────────────────
+      - name: ✅ Wait for Emulator to be Fully Ready
+        run: |
+          echo "Waiting for emulator boot to complete..."
+          adb wait-for-device
+          # Wait for boot_completed property
+          timeout 300 bash -c \
+            'until [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" == "1" ]]; do
+              echo "  ⏳ Emulator booting..."
+              sleep 5
+            done'
+          echo "✅ Emulator boot completed"
+
+          # Unlock screen
+          adb shell input keyevent 82 || true
+          adb shell wm size || true
+
+      # ─── 14. Install E2E Dependencies ─────────────────────
+      - name: 📦 Install E2E Test Dependencies
+        if: steps.e2e-node-cache.outputs.cache-hit != 'true'
+        run: npm install
+        working-directory: e2e
+
+      # ─── 15. Install Appium & Drivers ─────────────────────
+      - name: 🔧 Install Appium Server & Drivers
+        run: |
+          npm install -g appium@latest
+          appium driver install uiautomator2
+          appium driver list
+        working-directory: e2e
+
+      # ─── 16. Start Appium Server ──────────────────────────
+      - name: 🔌 Start Appium Server
+        run: |
+          mkdir -p "Test Results/Logs"
+          nohup appium \
+            --port 4723 \
+            --log "Test Results/Logs/appium-server.log" \
+            --relaxed-security \
+            --log-timestamp > appium-stdout.log 2>&1 &
+
+          echo "APPIUM_PID=$!" >> $GITHUB_ENV
+
+          # Wait for Appium to be ready
+          echo "Waiting for Appium server..."
+          for i in {1..30}; do
+            if curl -s http://localhost:4723/status > /dev/null 2>&1; then
+              echo "✅ Appium is ready (attempt $i)"
+              break
+            fi
+            echo "  ⏳ Attempt $i/30..."
+            sleep 2
+          done
+        working-directory: e2e
+
+      # ─── 17. Run Appium E2E Tests ─────────────────────────
+      - name: 🧪 Execute Appium E2E Tests
+        id: run-tests
+        run: |
+          BASE_URL="http://10.0.2.2:5000" \
+          ANDROID_API="${{ env.ANDROID_API }}" \
+          EMULATOR_NAME="emulator-5554" \
+          LOG_LEVEL="${{ env.LOG_LEVEL }}" \
+          npm run test:ci
+        working-directory: e2e
+        continue-on-error: true  # Always proceed to report generation
+
+      # ─── 18. Generate HTML Report ─────────────────────────
+      - name: 📊 Generate HTML Execution Report
+        if: always()
+        run: node scripts/generate-html-report.js
+        working-directory: e2e
+        env:
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+
+      # ─── 19. Generate Excel Report ────────────────────────
+      - name: 📈 Generate Excel Report
+        if: always()
+        run: node scripts/generate-excel-report.js
+        working-directory: e2e
+        env:
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+
+      # ─── 20. Generate Summary ─────────────────────────────
+      - name: 📝 Generate Summary & Job Summary
+        if: always()
+        run: node scripts/generate-summary.js
+        working-directory: e2e
+        env:
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_STEP_SUMMARY: ${{ env.GITHUB_STEP_SUMMARY }}
+
+      # ─── 21. Print Backend Logs on Failure ───────────────
+      - name: 🪵 Print Backend Logs (on failure)
+        if: failure()
+        run: cat backend-server.log || echo "No backend log found"
+
+      # ─── 22. Upload All Artifacts ─────────────────────────
+      - name: 📤 Upload Test Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-reports-build-${{ github.run_number }}
+          path: |
+            Test Results/
+            e2e/allure-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      # ─── 23. Prepare GitHub Pages Deployment ──────────────
+      - name: 🗂 Prepare GitHub Pages Report Structure
+        if: always()
+        run: |
+          BUILD_NUM=$(printf "%03d" ${{ github.run_number }})
+          RUN_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # latest/ — always overwritten with current run
+          mkdir -p gh-pages-deploy/reports/latest
+          cp -r "Test Results/HTML/."       gh-pages-deploy/reports/latest/ 2>/dev/null || true
+          cp -r "Test Results/Screenshots/." gh-pages-deploy/reports/latest/screenshots/ 2>/dev/null || true
+          cp -r "Test Results/Logs/."        gh-pages-deploy/reports/latest/logs/ 2>/dev/null || true
+          cp    "Test Results/Summary/summary.md" gh-pages-deploy/reports/latest/summary.md 2>/dev/null || true
+
+          # history/<build-NNN>/ — archived copy
+          mkdir -p "gh-pages-deploy/reports/history/build-${BUILD_NUM}"
+          cp -r "Test Results/HTML/."        "gh-pages-deploy/reports/history/build-${BUILD_NUM}/" 2>/dev/null || true
+          cp    "Test Results/Summary/summary.md" \
+                "gh-pages-deploy/reports/history/build-${BUILD_NUM}/summary.md" 2>/dev/null || true
+
+          # Root index.html — redirects to latest report
+          cat > gh-pages-deploy/index.html << HTMLEOF
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8" />
+            <meta http-equiv="refresh" content="0; url=reports/latest/execution-report.html" />
+            <title>AgroSmartHub E2E Reports</title>
+            <style>
+              body { font-family: system-ui, sans-serif; background: #0a0f1a; color: #f9fafb;
+                     display: flex; align-items: center; justify-content: center; min-height: 100vh;
+                     flex-direction: column; gap: 16px; }
+              a { color: #22c55e; text-decoration: none; font-weight: 600; }
+            </style>
+          </head>
+          <body>
+            <div style="font-size: 48px;">🌾</div>
+            <h1 style="font-size: 24px; font-weight: 800;">AgroSmartHub E2E Reports</h1>
+            <p>Redirecting to latest report...</p>
+            <p><a href="reports/latest/execution-report.html">Click here if not redirected</a></p>
+          </body>
+          </html>
+          HTMLEOF
+
+          # Generate reports index listing all history builds
+          echo "# AgroSmartHub E2E Test History" > gh-pages-deploy/reports/index.md
+
+          echo "Build ${BUILD_NUM} staged for deployment"
+        working-directory: .
+
+      # ─── 24. Deploy to GitHub Pages ───────────────────────
+      - name: 🚀 Deploy Reports to GitHub Pages
+        if: always() && github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./gh-pages-deploy
+          publish_branch: gh-pages
+          keep_files: true          # Preserve history builds
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: |
+            📊 E2E Report — Build #${{ github.run_number }}
+            Run: ${{ github.run_id }}
+            Ref: ${{ github.ref }}
+
+      # ─── 25. Post Report URL to PR (if Pull Request) ─────
+      - name: 💬 Comment Report URL on Pull Request
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner    = context.repo.owner;
+            const repo     = context.repo.repo;
+            const buildNum = '${{ github.run_number }}';
+            const reportUrl = `https://${owner}.github.io/${repo}/reports/latest/execution-report.html`;
+
+            const body = [
+              '## 🌾 AgroSmartHub E2E Test Results',
+              '',
+              `Build **#${buildNum}** completed.`,
+              '',
+              `📄 **[View Live Report](${reportUrl})**`,
+              '',
+              '| Metric | Value |',
+              '|--------|-------|',
+              `| Build | #${buildNum} |`,
+              `| Commit | ${context.sha.substring(0, 7)} |`,
+              `| Branch | ${context.ref} |`,
+              `| Run ID | ${context.runId} |`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+              body
+            });
+
+      # ─── 26. Fail Job if Tests Failed ─────────────────────
+      - name: ✅ Assert Test Results
+        if: always()
+        run: |
+          if [ "${{ steps.run-tests.outcome }}" == "failure" ]; then
+            echo "❌ E2E tests had failures — check the report for details"
+            echo "📄 Report: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/reports/latest/execution-report.html"
+            exit 1
+          else
+            echo "✅ All E2E tests passed!"
+          fi
