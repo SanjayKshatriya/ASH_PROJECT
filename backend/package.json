@@ -10,8 +10,6 @@
     "start:fresh": "npm run seed:supabase && npm start",
     "test": "npx jest --coverage",
     "lint": "eslint . --ext .js",
-    "db:migrate": "node database/migrate.js",
-    "db:seed": "node database/seed.js",
     "test:load": "node load-test.js"
   },
   "dependencies": {

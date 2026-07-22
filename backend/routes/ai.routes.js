@@ -8,13 +8,12 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10*
 router.post('/detect', auth, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Image required' });
-    // Forward to Python AI model (YOLOv8)
+    // Forward to Python AI model (YOLOv8) — TODO: uncomment when model is ready
     // const formData = new FormData();
     // formData.append('image', req.file.buffer, req.file.originalname);
     // const aiResponse = await axios.post(process.env.AI_MODEL_URL, formData);
     
-    // Demo response
-    const diseases = require('../../js/data.js'); // or use inline
+    // Demo response (inline — safe for Node.js backend)
     const demo = {
       disease: 'Healthy Crop', emoji: '✅', confidence: 97.4,
       health_score: 96, severity: 'healthy', affected_area: '0%',

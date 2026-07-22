@@ -3,7 +3,6 @@
 // Verifies Supabase JWT tokens issued by Supabase Auth
 // ============================================================
 
-const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 
 const supabase = require('../database/supabase');

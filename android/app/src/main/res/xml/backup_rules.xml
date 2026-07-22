@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- AgroSmartHub backup rules — exclude sensitive data -->
+<full-backup-content>
+    <!-- Exclude encrypted preferences from cloud backup -->
+    <exclude domain="sharedpref" path="ash_secure_prefs.xml" />
+</full-backup-content>

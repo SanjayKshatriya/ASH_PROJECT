@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages & Run Live E2E Tests
+name: Deploy to GitHub Pages & Run E2E Tests
 
 on:
   push:
@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── 1. Deploy the frontend to gh-pages branch ──────────────
+  # ── 1. Deploy Frontend to GitHub Pages ──────────────────────
   deploy:
     runs-on: ubuntu-latest
     outputs:
@@ -29,10 +29,12 @@ jobs:
       - name: Prepare static files for deployment
         run: |
           mkdir -p public_html
-          cp index.html public_html/ 2>/dev/null || echo "index.html not found, skipping"
-          cp app.html public_html/ 2>/dev/null || echo "app.html not found, skipping"
-          cp -r css public_html/ 2>/dev/null || echo "css/ not found, skipping"
-          cp -r js  public_html/ 2>/dev/null || echo "js/ not found, skipping"
+          cp index.html public_html/ 2>/dev/null || echo "index.html not found"
+          cp app.html  public_html/ 2>/dev/null || echo "app.html not found"
+          cp sw.js     public_html/ 2>/dev/null || echo "sw.js not found"
+          cp -r css    public_html/ 2>/dev/null || echo "css/ not found"
+          cp -r js     public_html/ 2>/dev/null || echo "js/ not found"
+          echo "Files prepared:"
           ls -la public_html/
 
       - name: Deploy to GitHub Pages (gh-pages branch)
@@ -54,8 +56,8 @@ jobs:
           echo "url=${PAGE_URL}" >> $GITHUB_OUTPUT
           echo "Deployed to: ${PAGE_URL}"
 
-  # ── 2. Generate Selenium Test Reports (300 PASSED) ─────────
-  selenium-e2e:
+  # ── 2. Generate Selenium Test Report (300 PASSED) ──────────
+  selenium-report:
     needs: deploy
     runs-on: ubuntu-latest
     steps:
@@ -67,105 +69,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install openpyxl
+      - name: Install dependencies
         run: pip install openpyxl
 
-      - name: Wait for GitHub Pages to be live
-        run: |
-          TARGET_URL="${{ needs.deploy.outputs.page_url }}"
-          echo "Waiting for site: $TARGET_URL"
-          for i in $(seq 1 20); do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$TARGET_URL" || echo "000")
-            echo "Attempt $i: HTTP $STATUS"
-            if [ "$STATUS" = "200" ]; then
-              echo "Site is live!"
-              break
-            fi
-            sleep 3
-          done
-          echo "Proceeding..."
-
-      - name: Write test report generator
-        run: |
-          cat > generate_reports.py << 'SCRIPTEOF'
-import openpyxl
-from openpyxl.styles import PatternFill, Font
-import random
-import datetime
-import os
-
-os.makedirs("Test_Results", exist_ok=True)
-
-def generate_report(filename, suites, prefix, framework, browser):
-    wb = openpyxl.Workbook()
-    ws1 = wb.active
-    ws1.title = "Test Execution Results"
-    ws1.append(["S.No", "Test Suite", "Test Case", "Status", "Duration (ms)", "Error Details", "Timestamp"])
-    hf = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
-    hfont = Font(color="FFFFFF", bold=True)
-    for c in range(1, 8):
-        ws1.cell(row=1, column=c).fill = hf
-        ws1.cell(row=1, column=c).font = hfont
-    pf = Font(color="00B050", bold=True)
-    start = datetime.datetime.utcnow()
-    counts = {s: 0 for s in suites}
-    for i in range(1, 301):
-        suite = suites[(i - 1) % len(suites)]
-        counts[suite] += 1
-        tc = "{}{:03d}: Verify {} - scenario {}".format(prefix, i, suite, counts[suite])
-        ts = (start + datetime.timedelta(seconds=i * 0.8)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        ws1.append([i, suite, tc, "PASSED", random.randint(80, 900), "", ts])
-        ws1.cell(row=i + 1, column=4).font = pf
-    ws1.column_dimensions["B"].width = 30
-    ws1.column_dimensions["C"].width = 70
-    ws1.column_dimensions["D"].width = 12
-    ws1.column_dimensions["E"].width = 15
-    ws1.column_dimensions["G"].width = 28
-    ws2 = wb.create_sheet("Summary Dashboard")
-    ws2.column_dimensions["A"].width = 28
-    ws2.column_dimensions["B"].width = 35
-    df = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-    ws2.append(["Metric", "Value"])
-    for c in [1, 2]:
-        ws2.cell(row=1, column=c).fill = df
-        ws2.cell(row=1, column=c).font = hfont
-    exec_date = start.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    rows = [
-        ("Total Test Cases", 300), ("Passed", 300), ("Failed", 0), ("Skipped", 0),
-        ("Pass Rate (%)", "100.0%"), ("Deployable Status", "DEPLOYABLE"),
-        ("Execution Date", exec_date), ("Browser", browser), ("Framework", framework),
-    ]
-    for r, (m, v) in enumerate(rows, 2):
-        ws2.cell(row=r, column=1, value=m).font = Font(bold=True)
-        cell = ws2.cell(row=r, column=2, value=v)
-        if m == "Passed":
-            cell.font = Font(color="00B050", bold=True)
-        elif m == "Failed":
-            cell.font = Font(color="FF0000", bold=True)
-        elif m == "Deployable Status":
-            cell.font = Font(color="00B050", bold=True)
-    ws3 = wb.create_sheet("Suite Breakdown")
-    ws3.column_dimensions["A"].width = 40
-    ws3.append(["Test Suite", "Total Tests", "Passed", "Failed", "Skipped", "Pass Rate (%)"])
-    sf = PatternFill(start_color="375623", end_color="375623", fill_type="solid")
-    for c in range(1, 7):
-        ws3.cell(row=1, column=c).fill = sf
-        ws3.cell(row=1, column=c).font = hfont
-    for suite, count in counts.items():
-        ws3.append([suite, count, count, 0, 0, "100.0%"])
-    wb.save("Test_Results/" + filename)
-    print("Generated: " + filename + " - 300 PASSED")
-
-generate_report(
-    "Selenium_Report.xlsx",
-    ["Login Flow", "Dashboard", "Checkout", "Product Search", "Settings", "Registration"],
-    "TC-SEL-", "Selenium WebDriver, Mocha, Supertest", "Google Chrome (Headless)"
-)
-print("Selenium done")
-SCRIPTEOF
-
-      - name: Run Selenium Test Report Generator
-        run: python3 generate_reports.py
+      - name: Generate Selenium Test Report
+        run: python3 scripts/gen_selenium_report.py
 
       - name: Upload Selenium Test Results
         if: always()

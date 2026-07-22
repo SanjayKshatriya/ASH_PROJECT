@@ -2,6 +2,12 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth.middleware');
 
+// GET /api/products/market/prices — Live market prices
+// ⚠️ MUST be before /:id to avoid Express treating "market" as an ID
+router.get('/market/prices', async (req, res) => {
+  res.json({ success: true, data: [] });
+});
+
 // GET /api/products — List marketplace products
 router.get('/', async (req, res) => {
   const { category, grade, certified, search, page=1, limit=20 } = req.query;
@@ -30,11 +36,6 @@ router.put('/:id', auth, async (req, res) => {
 // DELETE /api/products/:id
 router.delete('/:id', auth, async (req, res) => {
   res.json({ success: true, message: 'Product removed' });
-});
-
-// GET /api/products/market/prices — Live market prices
-router.get('/market/prices', async (req, res) => {
-  res.json({ success: true, data: [] });
 });
 
 module.exports = router;
