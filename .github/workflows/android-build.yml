@@ -39,9 +39,28 @@ jobs:
 
       - name: Create google-services.json placeholder
         run: |
-          # Use the placeholder google-services.json already in repo
-          echo "Using existing google-services.json"
-          cat android/app/google-services.json
+          echo '{
+            "project_info": {
+              "project_number": "123456789012",
+              "project_id": "dummy-project-id",
+              "storage_bucket": "dummy-project-id.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:123456789012:android:abcdef1234567890",
+                  "android_client_info": {
+                    "package_name": "com.sanjaykshatriya.agrosmarthub"
+                  }
+                },
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyDummyKeyPlaceholderForBuild"
+                  }
+                ]
+              }
+            ]
+          }' > android/app/google-services.json
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
