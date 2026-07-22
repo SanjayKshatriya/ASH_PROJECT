@@ -42,8 +42,8 @@ echo [5/6] Setting branch to main...
 git branch -M main
 
 echo.
-echo [6/6] Pushing to GitHub...
-git push -u origin main
+echo [6/6] Pushing to GitHub (Forcing update to resolve conflicts)...
+git push -u origin main --force
 
 echo.
 echo  ============================================
