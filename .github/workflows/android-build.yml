@@ -67,9 +67,37 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 7
 
+      - name: Generate Direct Download Link (File.io)
+        id: upload-apk
+        run: |
+          echo "Uploading APK to file.io for direct mobile download..."
+          RESPONSE=$(curl -F "file=@android/app/build/outputs/apk/debug/app-debug.apk" https://file.io)
+          LINK=$(echo $RESPONSE | grep -o '"link":"[^"]*' | cut -d'"' -f4)
+          echo "================================================="
+          echo " APK DIRECT DOWNLOAD LINK (Valid for 1 download/14 days):"
+          echo " $LINK"
+          echo "================================================="
+          echo "download_link=$LINK" >> $GITHUB_OUTPUT
+          
+          # Save the link to a file for GitHub Pages
+          mkdir -p gh-pages-apk-link
+          echo $LINK > gh-pages-apk-link/apk_link.txt
+
+      - name: Deploy APK Link to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./gh-pages-apk-link
+          publish_branch: gh-pages
+          keep_files: true
+          user_name: "github-actions[bot]"
+          user_email: "github-actions[bot]@users.noreply.github.com"
+          commit_message: "Update dynamic APK download link"
+
       - name: Print Build Summary
         run: |
           echo "================================================="
           echo " Android Build: SUCCESS"
           echo " APK available as workflow artifact"
+          echo " Direct Mobile Link: ${{ steps.upload-apk.outputs.download_link }}"
           echo "================================================="

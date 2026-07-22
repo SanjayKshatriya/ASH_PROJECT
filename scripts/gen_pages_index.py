@@ -148,8 +148,8 @@ html = """<!DOCTYPE html>
 </body>
 </html>"""
 
-with open("gh-pages-deploy/index.html", "w", encoding="utf-8") as f:
+with open("gh-pages-deploy/reports.html", "w", encoding="utf-8") as f:
     f.write(html)
 
-print("GitHub Pages index.html created")
+print("GitHub Pages reports.html created")
 print("gh-pages-deploy/ is ready for deployment")
