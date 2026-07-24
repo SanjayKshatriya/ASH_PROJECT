@@ -1,8 +1,11 @@
 // ============================================================
 // AgroSmartHub 3.0 — IoT Live Sensor Monitoring
+// Realtime: Supabase channel → iot_readings table
+// Fallback: Client-side simulation (setInterval)
 // ============================================================
 
 let iotInterval = null;
+let iotRealtimeChannel = null; // Supabase Realtime channel
 
 function renderIoTMonitor(container) {
   updateTopbar('IoT Sensor Monitor', 'Real-time farm environment data');
@@ -12,7 +15,7 @@ function renderIoTMonitor(container) {
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
       <div style="display:flex;align-items:center;gap:8px;padding:6px 14px;background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.25);border-radius:var(--radius-full)">
         <span style="width:8px;height:8px;border-radius:50%;background:var(--green-400);animation:sensor-blink 1s infinite"></span>
-        <span style="font-size:.78rem;font-weight:700;color:var(--green-400)">LIVE — Updates every 3s</span>
+        <span id="iotLiveLabel" style="font-size:.78rem;font-weight:700;color:var(--green-400)">LIVE — Updates every 3s</span>
       </div>
       <div style="font-size:.75rem;color:var(--text-muted)">Device: <strong>IoT-Gateway-001</strong> · Farm: ${currentUser.farmName || "Ramu's Green Agro Farm"}</div>
       <div style="margin-left:auto;display:flex;gap:8px">
@@ -61,17 +64,100 @@ function renderIoTMonitor(container) {
   updateSensorGrid();
   renderIoTCharts();
 
-  // Start live updates
+  // ── Try Supabase Realtime first, fallback to simulation ─
+  subscribeIoTRealtime();
+}
+
+/**
+ * Subscribe to Supabase Realtime iot_readings channel.
+ * When a new reading arrives, update the matching sensor card.
+ * Falls back to setInterval simulation if unavailable.
+ */
+async function subscribeIoTRealtime() {
+  await window.supabaseClientReady;
+
+  if (!window.supabaseClient) {
+    console.log('ℹ️  Supabase client not available — using simulated IoT data');
+    startSimulatedIoT();
+    return;
+  }
+
+  // Clean up existing channel
+  if (iotRealtimeChannel) {
+    window.supabaseClient.removeChannel(iotRealtimeChannel);
+    iotRealtimeChannel = null;
+  }
+
+  try {
+    iotRealtimeChannel = window.supabaseClient
+      .channel('iot_readings_live')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'iot_readings' },
+        (payload) => {
+          const row = payload.new;
+          // Find matching sensor by type label and update value
+          const sensor = ASH.sensors.find(s =>
+            s.label.toLowerCase() === (row.sensor_type || '').toLowerCase()
+          );
+          if (sensor && row.value != null) {
+            sensor.value = parseFloat(row.value);
+            updateSensorGrid();
+            updateIoTTable();
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Supabase Realtime IoT channel subscribed');
+          const label = document.getElementById('iotLiveLabel');
+          if (label) label.textContent = 'LIVE — Supabase Realtime';
+          // Still run simulation to generate readings in the DB
+          startSimulatedIoT(true);
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn('⚠️  Supabase Realtime IoT channel error — falling back to simulation');
+          startSimulatedIoT();
+        }
+      });
+  } catch (err) {
+    console.warn('Supabase Realtime subscribe error:', err.message, '— using simulation');
+    startSimulatedIoT();
+  }
+}
+
+/**
+ * Push a simulated sensor reading to Supabase iot_readings table.
+ * This triggers the Realtime channel for all connected clients.
+ */
+async function pushSensorReadingToSupabase(sensor) {
+  if (!window.supabaseClient) return;
+  try {
+    await window.supabaseClient.from('iot_readings').insert({
+      sensor_type: sensor.label,
+      value: sensor.value,
+      unit: sensor.unit,
+    });
+  } catch (_) {
+    // Silently fail if table doesn't exist yet
+  }
+}
+
+/**
+ * Start the client-side simulation loop.
+ * If pushToDb=true, also inserts rows into Supabase to trigger Realtime.
+ */
+function startSimulatedIoT(pushToDb = false) {
   if (iotInterval) clearInterval(iotInterval);
-  iotInterval = setInterval(() => {
+  iotInterval = setInterval(async () => {
     updateSensorValues();
     updateSensorGrid();
     updateIoTTable();
+    if (pushToDb && window.supabaseClient) {
+      // Push one random sensor reading to trigger realtime for other clients
+      const sensor = ASH.sensors[Math.floor(Math.random() * ASH.sensors.length)];
+      await pushSensorReadingToSupabase(sensor);
+    }
   }, 3000);
-
-  // Cleanup on page change
-  const origNav = window.navigateTo;
-  // We'll clean up in navigateTo
 }
 
 function updateSensorValues() {
@@ -177,15 +263,19 @@ function exportSensorData() {
   showToast('Sensor data exported!', 'success');
 }
 
-// Override navigateTo to stop IoT interval
+// Override navigateTo to stop IoT interval and Realtime channel
 const _origNavigateTo = window.navigateTo;
 window.navigateTo = function(page) {
-  if (page !== 'iot-monitor' && iotInterval) {
-    clearInterval(iotInterval);
-    iotInterval = null;
+  if (page !== 'iot-monitor') {
+    if (iotInterval) { clearInterval(iotInterval); iotInterval = null; }
+    if (iotRealtimeChannel && window.supabaseClient) {
+      window.supabaseClient.removeChannel(iotRealtimeChannel);
+      iotRealtimeChannel = null;
+    }
   }
   _origNavigateTo(page);
 };
+
 
 function renderIoTCharts() {
   setTimeout(() => {
