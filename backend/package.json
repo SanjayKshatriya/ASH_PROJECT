@@ -7,6 +7,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "seed:supabase": "node database/seed-supabase.js",
+    "test:connection": "node database/test-connection.js",
     "start:fresh": "npm run seed:supabase && npm start",
     "test": "npx jest --coverage",
     "lint": "eslint . --ext .js",

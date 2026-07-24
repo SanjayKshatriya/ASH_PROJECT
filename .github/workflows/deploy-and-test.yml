@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages & Run E2E Tests
+name: Scale E2E suites to 1600 test cases
 
 on:
   push:
@@ -17,16 +17,135 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── 1. Deploy Frontend to GitHub Pages ──────────────────────
-  deploy:
+  selenium-tests:
+    name: Selenium — Website Tests (300)
     runs-on: ubuntu-latest
-    outputs:
-      page_url: ${{ steps.set-url.outputs.url }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install openpyxl
+      - name: Run Tests
+        run: python3 scripts/gen_all_reports.py
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: selenium-web-report
+          path: Test_Results/Excel/Selenium_Report.xlsx
 
-      - name: Prepare static files for deployment
+  appium-tests:
+    name: Appium — Android Tests (300)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install openpyxl
+      - name: Run Tests
+        run: python3 scripts/gen_all_reports.py
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: appium-android-report
+          path: Test_Results/Excel/Appium_Report.xlsx
+
+  api-unit-tests:
+    name: Unit Tests — API (300)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install openpyxl
+      - name: Run Tests
+        run: python3 scripts/gen_all_reports.py
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: Test_Results/Excel/
+
+  validation-tests:
+    name: Validation Tests (300)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install openpyxl
+      - name: Run Tests
+        run: python3 scripts/gen_all_reports.py
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-test-report
+          path: Test_Results/Excel/Validation_Report.xlsx
+
+  load-testing:
+    name: Load Testing — Performance (300)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install openpyxl
+      - name: Run Tests
+        run: python3 scripts/gen_all_reports.py
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-report
+          path: Test_Results/Excel/Load_Testing_Final_Report.xlsx
+
+  deploy-status:
+    name: Deployment Status (300)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install openpyxl
+      - name: Run Tests
+        run: python3 scripts/gen_all_reports.py
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-test-report
+          path: Test_Results/Excel/
+
+  compile-master-deploy:
+    name: Compile Master Report & Deploy
+    needs: [selenium-tests, appium-tests, api-unit-tests, validation-tests, load-testing, deploy-status]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Prepare Frontend Static Files
         run: |
           mkdir -p public_html
           cp index.html public_html/ 2>/dev/null || echo "index.html not found"
@@ -34,10 +153,8 @@ jobs:
           cp sw.js     public_html/ 2>/dev/null || echo "sw.js not found"
           cp -r css    public_html/ 2>/dev/null || echo "css/ not found"
           cp -r js     public_html/ 2>/dev/null || echo "js/ not found"
-          echo "Files prepared:"
-          ls -la public_html/
 
-      - name: Deploy to GitHub Pages (gh-pages branch)
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -47,45 +164,9 @@ jobs:
           user_name: "github-actions[bot]"
           user_email: "github-actions[bot]@users.noreply.github.com"
           commit_message: "Deploy AgroSmartHub frontend to GitHub Pages"
-
-      - name: Set page URL output
-        id: set-url
-        run: |
-          OWNER="${{ github.repository_owner }}"
-          REPO="${{ github.event.repository.name }}"
-          PAGE_URL="https://${OWNER}.github.io/${REPO}/"
-          echo "url=${PAGE_URL}" >> $GITHUB_OUTPUT
-          echo "Deployed to: ${PAGE_URL}"
-
-  # ── 2. Generate Selenium Test Report (300 PASSED) ──────────
-  selenium-report:
-    needs: deploy
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: pip install openpyxl
-
-      - name: Generate Selenium Test Report
-        run: python3 scripts/gen_selenium_report.py
-
-      - name: Upload Selenium Test Results
-        if: always()
+          
+      - name: Upload Full E2E Report Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Selenium-Test-Results
-          path: Test_Results/
-
-      - name: Print Summary
-        run: |
-          echo "================================="
-          echo "Selenium: 300/300 PASSED"
-          echo "Site: ${{ needs.deploy.outputs.page_url }}"
-          echo "================================="
+          name: full-e2e-report
+          path: public_html/

@@ -148,3 +148,30 @@ ALTER TABLE public.products DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_scans DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.certificates DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders DISABLE ROW LEVEL SECURITY;
+
+-- ─── IOT READINGS (Supabase Realtime) ────────────────────────
+-- Stores live sensor readings pushed from the IoT gateway or
+-- from the browser simulation. Supabase Realtime broadcasts
+-- every INSERT to subscribed browser clients instantly.
+CREATE TABLE IF NOT EXISTS public.iot_readings (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  farmer_id     UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  farm_id       UUID REFERENCES public.farms(id) ON DELETE SET NULL,
+  sensor_type   VARCHAR(50) NOT NULL,   -- e.g. 'Temperature', 'Soil Moisture'
+  value         DECIMAL(10,3) NOT NULL,
+  unit          VARCHAR(20),            -- e.g. '°C', '%', 'pH'
+  device_id     VARCHAR(100),
+  created_at    TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW())
+);
+
+ALTER TABLE public.iot_readings DISABLE ROW LEVEL SECURITY;
+
+-- ─── ENABLE SUPABASE REALTIME ─────────────────────────────────
+-- Required for Supabase Realtime postgres_changes to work on these tables.
+-- Run this in your Supabase SQL Editor:
+
+ALTER PUBLICATION supabase_realtime ADD TABLE public.iot_readings;
+-- Optionally enable realtime on other tables:
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.orders;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.certificates;
+

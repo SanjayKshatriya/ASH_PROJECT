@@ -166,7 +166,7 @@ fun AIDetectionScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         
-                        Divider(modifier = Modifier.padding(vertical = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
                         
                         Text("Recommended Action", fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(4.dp))

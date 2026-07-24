@@ -148,42 +148,81 @@ function setupOTPBoxes() {
   });
 }
 
-// ─── LOGIN ───
+// ─── LOGIN ─── (3-tier: Express backend → Direct Supabase → Demo fallback)
 async function handleLogin() {
   const email = document.getElementById('loginEmail')?.value?.trim();
   const pw = document.getElementById('loginPassword')?.value;
   const btnText = document.getElementById('loginBtnText');
   const spinner = document.getElementById('loginSpinner');
   if (!email || !pw) { showToast('Enter email and password', 'error'); return; }
-  
+
   if (btnText) btnText.style.display = 'none';
   if (spinner) spinner.style.display = 'block';
-  
+
   try {
-    const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: pw })
-    });
-    const data = await res.json();
-    
-    if (res.ok && data.success) {
-      localStorage.setItem('ash_token', data.token);
-      const user = { ...(ASH?.users?.[data.user.role] || {}), ...data.user };
-      loginSuccess(user);
-    } else {
-      showToast(data.error || 'Invalid credentials.', 'error');
+    // ── Tier 1: Try Express backend ──────────────────────────
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pw }),
+        signal: AbortSignal.timeout(5000)
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        localStorage.setItem('ash_token', data.token);
+        const user = { ...(ASH?.users?.[data.user.role] || {}), ...data.user };
+        loginSuccess(user);
+        return;
+      }
+      // Backend responded but auth failed (wrong credentials) — show real error
+      if (res.status === 401 || res.status === 400) {
+        showToast(data.error || 'Invalid email or password.', 'error');
+        return;
+      }
+    } catch (backendErr) {
+      console.warn('Backend unreachable, trying direct Supabase login...');
     }
-  } catch (err) {
-    console.error('Login error:', err);
-    showToast('Cannot reach server. Make sure backend is running on port 5000.', 'error');
+
+    // ── Tier 2: Direct Supabase browser client ───────────────
+    await window.supabaseClientReady; // wait for init
+    if (window.supabaseClient) {
+      const { data: sbData, error: sbError } = await window.supabaseClient.auth.signInWithPassword({
+        email,
+        password: pw
+      });
+      if (sbError) {
+        showToast(sbError.message || 'Invalid email or password.', 'error');
+        return;
+      }
+      if (sbData?.session) {
+        localStorage.setItem('ash_token', sbData.session.access_token);
+        const meta = sbData.user.user_metadata || {};
+        const user = {
+          ...(ASH?.users?.[meta.role || 'farmer'] || {}),
+          id:    sbData.user.id,
+          email: sbData.user.email,
+          name:  meta.name  || 'User',
+          role:  meta.role  || 'farmer',
+          state: meta.state || '',
+          mobile: meta.mobile || ''
+        };
+        showToast('Signed in via Supabase directly ✅', 'success');
+        loginSuccess(user);
+        return;
+      }
+    }
+
+    // ── Tier 3: All paths failed ─────────────────────────────
+    showToast('Login failed. Backend and Supabase both unreachable.', 'error');
+
   } finally {
     if (btnText) btnText.style.display = 'inline';
     if (spinner) spinner.style.display = 'none';
   }
 }
 
-// ─── DEMO LOGIN ───
+// ─── DEMO LOGIN ─── (3-tier: Express backend → Direct Supabase → Offline demo)
 async function demoLogin(role) {
   const credentials = {
     farmer: { email: 'ramu@farmer.com',          password: 'farmer123' },
@@ -194,7 +233,6 @@ async function demoLogin(role) {
 
   const creds = credentials[role];
   if (!creds) {
-    // Fallback to mock user
     const user = ASH.users[role];
     if (user) loginSuccess(user);
     return;
@@ -202,7 +240,7 @@ async function demoLogin(role) {
 
   showToast(`Logging in as ${role}...`, 'info');
 
-  // Try real backend first
+  // ── Tier 1: Express backend ──────────────────────────────
   try {
     const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
       method: 'POST',
@@ -217,14 +255,39 @@ async function demoLogin(role) {
       loginSuccess(user);
       return;
     }
-    // Server responded but auth failed — still fall through to demo mode
-    console.warn('Backend auth failed:', data.error, '— using demo mode');
-  } catch (err) {
-    console.warn('Backend unreachable — using offline demo mode');
+    console.warn('Backend auth failed:', data.error);
+  } catch (_) {
+    console.warn('Backend unreachable — trying direct Supabase...');
   }
 
-  // ── OFFLINE DEMO FALLBACK ──
-  // Works without backend for presentations / local testing
+  // ── Tier 2: Direct Supabase browser client ───────────────
+  await window.supabaseClientReady;
+  if (window.supabaseClient) {
+    try {
+      const { data: sbData, error: sbError } = await window.supabaseClient.auth.signInWithPassword({
+        email: creds.email,
+        password: creds.password
+      });
+      if (!sbError && sbData?.session) {
+        localStorage.setItem('ash_token', sbData.session.access_token);
+        const meta = sbData.user.user_metadata || {};
+        const user = {
+          ...(ASH?.users?.[role] || {}),
+          id:    sbData.user.id,
+          email: sbData.user.email,
+          name:  meta.name  || ASH.users[role]?.name  || 'User',
+          role:  meta.role  || role,
+          state: meta.state || '',
+          mobile: meta.mobile || ''
+        };
+        showToast(`✅ Signed in as ${role} via Supabase`, 'success');
+        loginSuccess(user);
+        return;
+      }
+    } catch (_) {}
+  }
+
+  // ── Tier 3: Offline demo fallback ────────────────────────
   showToast(`Demo mode: Signed in as ${role} (offline)`, 'success');
   const mockUser = ASH.users[role];
   if (mockUser) loginSuccess(mockUser);
@@ -304,8 +367,32 @@ async function handleRegister() {
 }
 
 // ─── FORGOT PASSWORD ───
-function showForgot() {
-  showToast('Password reset link sent to your email (Demo mode)', 'success');
+async function showForgot() {
+  const email = document.getElementById('loginEmail')?.value?.trim();
+  if (!email) {
+    showToast('Enter your email address first, then click Forgot Password.', 'warning');
+    return;
+  }
+
+  // Try backend first
+  try {
+    await fetch(`${BACKEND_URL}/api/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+      signal: AbortSignal.timeout(3000)
+    });
+  } catch (_) {
+    // Backend not available — try Supabase directly
+    await window.supabaseClientReady;
+    if (window.supabaseClient) {
+      await window.supabaseClient.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + '/index.html'
+      });
+    }
+  }
+
+  showToast(`Password reset link sent to ${email} 📧`, 'success');
 }
 
 // ─── PASSWORD TOGGLE ───
