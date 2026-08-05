@@ -148,7 +148,7 @@ jobs:
       - name: Download all test reports
         uses: actions/download-artifact@v4
         with:
-          path: public_html/Test_Results/Excel/
+          path: Test_Results/Excel/
           merge-multiple: true
           
       - name: Setup Python
@@ -165,6 +165,7 @@ jobs:
       - name: Prepare Frontend Static Files
         run: |
           mkdir -p public_html
+          cp -r gh-pages-deploy/* public_html/ 2>/dev/null || echo "reports not found"
           cp index.html public_html/ 2>/dev/null || echo "index.html not found"
           cp app.html  public_html/ 2>/dev/null || echo "app.html not found"
           cp sw.js     public_html/ 2>/dev/null || echo "sw.js not found"

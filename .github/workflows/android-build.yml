@@ -51,7 +51,7 @@ jobs:
                 "client_info": {
                   "mobilesdk_app_id": "1:123456789012:android:abcdef1234567890",
                   "android_client_info": {
-                    "package_name": "com.sanjaykshatriya.agrosmarthub"
+                    "package_name": "com.agrismarthub.app"
                   }
                 },
                 "api_key": [
@@ -76,8 +76,6 @@ jobs:
       - name: Build Debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon --stacktrace
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
       - name: Upload Debug APK
         if: success()
@@ -91,8 +89,10 @@ jobs:
         id: upload-apk
         run: |
           echo "Uploading APK to file.io for direct mobile download..."
-          RESPONSE=$(curl -F "file=@android/app/build/outputs/apk/debug/app-debug.apk" https://file.io)
-          LINK=$(echo $RESPONSE | grep -o '"link":"[^"]*' | cut -d'"' -f4)
+          set +e
+          RESPONSE=$(curl -s -F "file=@android/app/build/outputs/apk/debug/app-debug.apk" https://file.io || echo '{"link":""}')
+          LINK=$(echo "$RESPONSE" | grep -o '"link":"[^"]*' | cut -d'"' -f4 || echo "")
+          set -e
           echo "================================================="
           echo " APK DIRECT DOWNLOAD LINK (Valid for 1 download/14 days):"
           echo " $LINK"
