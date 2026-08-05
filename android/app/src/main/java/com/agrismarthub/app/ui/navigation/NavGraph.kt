@@ -23,6 +23,7 @@ object Routes {
     const val MARKETPLACE = "marketplace"
     const val CERTIFICATES = "certificates"
     const val ORDERS = "orders"
+    const val NOTIFICATIONS = "notifications"
 }
 
 @Composable

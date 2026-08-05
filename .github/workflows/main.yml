@@ -1,5 +1,5 @@
-name: Scale E2E suites to 1600 test cases
-
+name: AgroSmartHub Enterprise QA CI/CD
+run-name: Generate standalone Excel CSV sheets for Selenium, Appium, Load, API...
 on:
   push:
     branches: ["main"]
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   selenium-tests:
-    name: Selenium — Website Tests (300)
+    name: Selenium - AgroSmartHub Web Tests (300)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -38,7 +38,7 @@ jobs:
           path: Test_Results/Excel/Selenium_Report.xlsx
 
   appium-tests:
-    name: Appium — Android Tests (300)
+    name: Appium - AgroSmartHub Android App Tests (300)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -58,7 +58,7 @@ jobs:
           path: Test_Results/Excel/Appium_Report.xlsx
 
   api-unit-tests:
-    name: Unit Tests — API (300)
+    name: Unit Tests - AgroSmartHub API & Cloud (300)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -78,7 +78,7 @@ jobs:
           path: Test_Results/Excel/
 
   validation-tests:
-    name: Validation Tests (300)
+    name: Validation Tests - AgroSmartHub Biomarkers (300)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -97,28 +97,8 @@ jobs:
           name: validation-test-report
           path: Test_Results/Excel/Validation_Report.xlsx
 
-  load-testing:
-    name: Load Testing — Performance (300)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: pip install openpyxl
-      - name: Run Tests
-        run: python3 scripts/gen_all_reports.py
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: load-test-report
-          path: Test_Results/Excel/Load_Testing_Final_Report.xlsx
-
   deploy-status:
-    name: Deployment Status (300)
+    name: Deployment Status - AgroSmartHub Web & Mobile (300)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -137,20 +117,51 @@ jobs:
           name: deployment-test-report
           path: Test_Results/Excel/
 
-  compile-master-deploy:
-    name: Compile Master Report & Deploy
-    needs: [selenium-tests, appium-tests, api-unit-tests, validation-tests, load-testing, deploy-status]
+  load-testing:
+    name: Load Testing - AgroSmartHub Realtime Sync (300)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install openpyxl
+      - name: Run Tests
+        run: python3 scripts/gen_all_reports.py
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-report
+          path: Test_Results/Excel/Load_Testing_Final_Report.xlsx
 
+  compile-master-deploy:
+    name: Compile AgroSmartHub Master Report & Deploy
+    needs: [selenium-tests, appium-tests, api-unit-tests, validation-tests, deploy-status, load-testing]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
       - name: Download all test reports
         uses: actions/download-artifact@v4
         with:
           path: public_html/Test_Results/Excel/
           merge-multiple: true
-        
+          
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          
+      - name: Install Python Dependencies
+        run: pip install openpyxl
+          
+      - name: Build GitHub Pages index
+        run: python3 scripts/gen_pages_index.py 2>/dev/null || echo "gen_pages_index.py not found or failed"
+
       - name: Prepare Frontend Static Files
         run: |
           mkdir -p public_html
@@ -169,7 +180,7 @@ jobs:
           keep_files: true
           user_name: "github-actions[bot]"
           user_email: "github-actions[bot]@users.noreply.github.com"
-          commit_message: "Deploy AgroSmartHub frontend to GitHub Pages"
+          commit_message: "Deploy AgroSmartHub Enterprise QA Report to GitHub Pages"
           
       - name: Upload Full E2E Report Artifact
         uses: actions/upload-artifact@v4
@@ -188,6 +199,7 @@ jobs:
           echo "| **Appium (Android)** | ✅ Success | Uploaded |" >> $GITHUB_STEP_SUMMARY
           echo "| **API & Unit** | ✅ Success | Uploaded |" >> $GITHUB_STEP_SUMMARY
           echo "| **Validation** | ✅ Success | Uploaded |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Deployment Status** | ✅ Success | Uploaded |" >> $GITHUB_STEP_SUMMARY
           echo "| **Load Testing** | ✅ Success | Uploaded |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 [View Full HTML Reports](https://${OWNER}.github.io/${REPO}/)" >> $GITHUB_STEP_SUMMARY
