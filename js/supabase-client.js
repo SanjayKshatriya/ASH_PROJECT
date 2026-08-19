@@ -29,7 +29,8 @@
 
     // Try to fetch config from backend (non-blocking)
     try {
-      const res = await fetch('http://localhost:5000/api/supabase-config', {
+      const backendUrl = window.location.protocol === 'file:' ? 'http://localhost:5000' : `${window.location.protocol}//${window.location.hostname}:5000`;
+      const res = await fetch(`${backendUrl}/api/supabase-config`, {
         signal: AbortSignal.timeout(2000)
       });
       if (res.ok) {
@@ -69,6 +70,15 @@
       });
 
       console.log('✅ Supabase browser client initialized:', supabaseUrl);
+
+      // Listen for auth state changes (e.g. password recovery link click)
+      window.supabaseClient.auth.onAuthStateChange((event) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          if (typeof showResetPasswordForm === 'function') {
+            showResetPasswordForm();
+          }
+        }
+      });
 
       // Restore existing session if present
       const { data: { session } } = await window.supabaseClient.auth.getSession();

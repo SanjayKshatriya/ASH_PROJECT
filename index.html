@@ -549,8 +549,8 @@
     <button class="btn-hero-primary" onclick="openAuth('register')" id="heroRegBtn">
       <span>🌱</span> Start for Free
     </button>
-    <button class="btn-hero-secondary" onclick="openAuth('login')" id="heroDemoBtn">
-      <span>⚡</span> Demo Login
+    <button class="btn-hero-secondary" onclick="openAuth('login')" id="heroLoginBtn">
+      <span>🔑</span> Sign In
     </button>
   </div>
 
@@ -872,12 +872,9 @@
 
         <div class="auth-divider"><span>or sign in with</span></div>
 
-        <button class="social-btn" onclick="handleGoogleLogin()" style="margin-bottom:8px">
+        <button class="social-btn" onclick="handleGoogleLogin()">
           <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
           Continue with Google
-        </button>
-        <button class="social-btn" onclick="handleBiometric()">
-          🔐 Face ID / Fingerprint
         </button>
       </div>
 
@@ -900,20 +897,8 @@
             <input class="otp-box" maxlength="1" type="text" inputmode="numeric" id="otp5" />
             <input class="otp-box" maxlength="1" type="text" inputmode="numeric" id="otp6" />
           </div>
-          <p style="font-size:.72rem;color:rgba(107,114,128,.7);text-align:center;margin-top:8px">Demo OTP: <strong style="color:#4ade80">1 2 3 4 5 6</strong></p>
         </div>
         <button class="btn-auth-submit" onclick="handleOTP()" id="otpBtn">Send OTP 📱</button>
-      </div>
-
-      <!-- Demo buttons -->
-      <div style="margin-top:20px;padding:16px;border-radius:10px;background:rgba(22,163,74,.05);border:1px solid rgba(22,163,74,.12)">
-        <p style="font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:rgba(187,247,208,.5);text-align:center;margin-bottom:10px">⚡ Quick Demo Login</p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <button onclick="demoLogin('farmer')" style="padding:8px;border-radius:8px;border:1px solid rgba(34,197,94,.2);background:rgba(22,163,74,.08);color:#4ade80;font-family:'Outfit',sans-serif;font-size:.75rem;font-weight:600;cursor:pointer;transition:.2s" onmouseover="this.style.background='rgba(22,163,74,.18)'" onmouseout="this.style.background='rgba(22,163,74,.08)'">🧑‍🌾 Farmer</button>
-          <button onclick="demoLogin('buyer')"  style="padding:8px;border-radius:8px;border:1px solid rgba(13,148,136,.2);background:rgba(13,148,136,.08);color:#2dd4bf;font-family:'Outfit',sans-serif;font-size:.75rem;font-weight:600;cursor:pointer;transition:.2s" onmouseover="this.style.background='rgba(13,148,136,.18)'" onmouseout="this.style.background='rgba(13,148,136,.08)'">🛒 Buyer</button>
-          <button onclick="demoLogin('expert')" style="padding:8px;border-radius:8px;border:1px solid rgba(37,99,235,.2);background:rgba(37,99,235,.08);color:#60a5fa;font-family:'Outfit',sans-serif;font-size:.75rem;font-weight:600;cursor:pointer;transition:.2s" onmouseover="this.style.background='rgba(37,99,235,.18)'" onmouseout="this.style.background='rgba(37,99,235,.08)'">🧑‍🔬 Expert</button>
-          <button onclick="demoLogin('admin')"  style="padding:8px;border-radius:8px;border:1px solid rgba(124,58,237,.2);background:rgba(124,58,237,.08);color:#a78bfa;font-family:'Outfit',sans-serif;font-size:.75rem;font-weight:600;cursor:pointer;transition:.2s" onmouseover="this.style.background='rgba(124,58,237,.18)'" onmouseout="this.style.background='rgba(124,58,237,.08)'">⚙️ Admin</button>
-        </div>
       </div>
 
       <p class="auth-switch">Don't have an account? <a href="#" onclick="switchToRegister()">Create one →</a></p>
@@ -1144,6 +1129,37 @@
 
       <p class="auth-switch">Already have an account? <a href="#" onclick="switchToLogin()">Sign in →</a></p>
     </div>
+
+    <!-- ── RESET PASSWORD FORM ── -->
+    <div id="resetPasswordForm" style="display:none">
+      <h2 class="auth-title">Set New Password 🔑</h2>
+      <p class="auth-sub">Enter your new password below to update your account credentials.</p>
+
+      <div class="form-group">
+        <label class="form-label" for="resetNewPassword">New Password</label>
+        <div class="form-input-wrap">
+          <span class="form-input-icon">🔒</span>
+          <input class="form-input has-icon" type="password" id="resetNewPassword" placeholder="Minimum 6 characters" autocomplete="new-password" />
+          <button class="pw-toggle" onclick="togglePw('resetNewPassword')" type="button" aria-label="Toggle password">👁</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="resetConfirmPassword">Confirm New Password</label>
+        <div class="form-input-wrap">
+          <span class="form-input-icon">🔒</span>
+          <input class="form-input has-icon" type="password" id="resetConfirmPassword" placeholder="Re-enter new password" autocomplete="new-password" />
+          <button class="pw-toggle" onclick="togglePw('resetConfirmPassword')" type="button" aria-label="Toggle password">👁</button>
+        </div>
+      </div>
+
+      <button class="btn-auth-submit" onclick="handleResetPassword()" id="resetSubmitBtn">
+        <span id="resetBtnText">Save New Password 💾</span>
+        <span id="resetSpinner" class="spinner" style="display:none"></span>
+      </button>
+
+      <p class="auth-switch">Remember your password? <a href="#" onclick="switchToLogin()">Sign in →</a></p>
+    </div>
   </div>
 </div>
 
@@ -1229,24 +1245,21 @@
 
   // ─── GOOGLE LOGIN ───
   async function handleGoogleLogin() {
-    if (!supabase) { showToast('Supabase not initialized', 'error'); return; }
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: `${window.location.origin}/app.html` }
-      });
-      if (error) showToast(error.message, 'error');
-    } catch(e) {
-      showToast('Google sign-in unavailable in demo mode', 'warning');
+    showToast('Connecting to Google Sign-In...', 'info');
+    await window.supabaseClientReady;
+    const client = window.supabaseClient;
+    if (!client) {
+      showToast('Supabase client is not ready. Make sure backend or internet is available.', 'error');
+      return;
     }
-  }
-
-  // ─── BIOMETRIC ───
-  function handleBiometric() {
-    if (window.PublicKeyCredential) {
-      showToast('Biometric authentication coming soon! Use demo login for now.', 'info');
-    } else {
-      showToast('Biometric not supported on this device/browser', 'warning');
+    const { data, error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + '/app.html'
+      }
+    });
+    if (error) {
+      showToast(error.message, 'error');
     }
   }
 

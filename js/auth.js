@@ -7,7 +7,7 @@ if (typeof randomInt === 'undefined') {
   window.randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-const BACKEND_URL = 'http://localhost:5000';
+const BACKEND_URL = window.location.protocol === 'file:' ? 'http://localhost:5000' : `${window.location.protocol}//${window.location.hostname}:5000`;
 
 let selectedRole = 'farmer';
 let currentRegStep = 1;
@@ -32,11 +32,22 @@ function closeAuth() {
 function showLoginForm() {
   document.getElementById('loginForm').style.display = 'block';
   document.getElementById('registerForm').style.display = 'none';
+  const resetEl = document.getElementById('resetPasswordForm');
+  if (resetEl) resetEl.style.display = 'none';
 }
 function showRegisterForm() {
   document.getElementById('loginForm').style.display = 'none';
   document.getElementById('registerForm').style.display = 'block';
+  const resetEl = document.getElementById('resetPasswordForm');
+  if (resetEl) resetEl.style.display = 'none';
   generateFarmerId();
+}
+function showResetPasswordForm() {
+  document.getElementById('loginForm').style.display = 'none';
+  document.getElementById('registerForm').style.display = 'none';
+  const resetEl = document.getElementById('resetPasswordForm');
+  if (resetEl) resetEl.style.display = 'block';
+  openAuth('reset-password');
 }
 function switchToRegister() { showRegisterForm(); }
 function switchToLogin() { showLoginForm(); }
@@ -109,29 +120,54 @@ function nextRegStep(step) {
   currentRegStep = step;
 }
 
-// ─── OTP HANDLING ───
-function handleOTP() {
-  const mobile = document.getElementById('otpMobile')?.value;
+// ─── OTP HANDLING (REAL BACKEND OTP) ───
+async function handleOTP() {
+  const mobile = document.getElementById('otpMobile')?.value?.trim();
   if (!mobile) { showToast('Enter mobile number', 'error'); return; }
+  
   if (!otpSent) {
-    // Simulate OTP send
-    otpSent = true;
-    document.getElementById('otpFieldWrap').style.display = 'block';
-    document.getElementById('otpBtn').textContent = 'Verify OTP';
-    showToast('OTP sent to ' + mobile + ' (Demo: 123456)', 'success');
-    // Auto-fill demo OTP
-    setTimeout(() => {
-      document.querySelectorAll('.otp-box').forEach((box, i) => {
-        box.value = '123456'[i] || '';
+    showToast('Sending OTP...', 'info');
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile })
       });
-    }, 500);
-    setupOTPBoxes();
+      const data = await res.json();
+      if (res.ok && data.success) {
+        otpSent = true;
+        document.getElementById('otpFieldWrap').style.display = 'block';
+        document.getElementById('otpBtn').textContent = 'Verify OTP';
+        showToast(data.message || `OTP sent to ${mobile}`, 'success');
+        setupOTPBoxes();
+      } else {
+        showToast(data.error || 'Failed to send OTP.', 'error');
+      }
+    } catch (err) {
+      showToast('Cannot reach server to send OTP.', 'error');
+    }
   } else {
     const otp = Array.from(document.querySelectorAll('.otp-box')).map(b => b.value).join('');
-    if (otp === '123456') {
-      loginSuccess(ASH.users.farmer);
-    } else {
-      showToast('Invalid OTP. Use 123456 for demo.', 'error');
+    if (otp.length < 6) {
+      showToast('Please enter full 6-digit OTP', 'error');
+      return;
+    }
+    showToast('Verifying OTP...', 'info');
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile, otp })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        localStorage.setItem('ash_token', data.token);
+        loginSuccess({ id: 'OTP-' + Date.now(), name: 'User (' + mobile + ')', mobile, role: 'farmer' });
+      } else {
+        showToast(data.error || 'Invalid OTP.', 'error');
+      }
+    } catch (err) {
+      showToast('OTP verification failed.', 'error');
     }
   }
 }
@@ -148,7 +184,7 @@ function setupOTPBoxes() {
   });
 }
 
-// ─── LOGIN ─── (3-tier: Express backend → Direct Supabase → Demo fallback)
+// ─── LOGIN ─── (Real authentication: Express Backend → Direct Supabase)
 async function handleLogin() {
   const email = document.getElementById('loginEmail')?.value?.trim();
   const pw = document.getElementById('loginPassword')?.value;
@@ -160,7 +196,7 @@ async function handleLogin() {
   if (spinner) spinner.style.display = 'block';
 
   try {
-    // ── Tier 1: Try Express backend ──────────────────────────
+    // ── Step 1: Try Express backend ──────────────────────────
     try {
       const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
         method: 'POST',
@@ -171,11 +207,9 @@ async function handleLogin() {
       const data = await res.json();
       if (res.ok && data.success) {
         localStorage.setItem('ash_token', data.token);
-        const user = { ...(ASH?.users?.[data.user.role] || {}), ...data.user };
-        loginSuccess(user);
+        loginSuccess(data.user);
         return;
       }
-      // Backend responded but auth failed (wrong credentials) — show real error
       if (res.status === 401 || res.status === 400) {
         showToast(data.error || 'Invalid email or password.', 'error');
         return;
@@ -184,8 +218,8 @@ async function handleLogin() {
       console.warn('Backend unreachable, trying direct Supabase login...');
     }
 
-    // ── Tier 2: Direct Supabase browser client ───────────────
-    await window.supabaseClientReady; // wait for init
+    // ── Step 2: Direct Supabase browser client ───────────────
+    await window.supabaseClientReady;
     if (window.supabaseClient) {
       const { data: sbData, error: sbError } = await window.supabaseClient.auth.signInWithPassword({
         email,
@@ -199,7 +233,6 @@ async function handleLogin() {
         localStorage.setItem('ash_token', sbData.session.access_token);
         const meta = sbData.user.user_metadata || {};
         const user = {
-          ...(ASH?.users?.[meta.role || 'farmer'] || {}),
           id:    sbData.user.id,
           email: sbData.user.email,
           name:  meta.name  || 'User',
@@ -207,14 +240,13 @@ async function handleLogin() {
           state: meta.state || '',
           mobile: meta.mobile || ''
         };
-        showToast('Signed in via Supabase directly ✅', 'success');
+        showToast('Signed in via Supabase ✅', 'success');
         loginSuccess(user);
         return;
       }
     }
 
-    // ── Tier 3: All paths failed ─────────────────────────────
-    showToast('Login failed. Backend and Supabase both unreachable.', 'error');
+    showToast('Login failed. Unable to authenticate credentials.', 'error');
 
   } finally {
     if (btnText) btnText.style.display = 'inline';
@@ -222,83 +254,35 @@ async function handleLogin() {
   }
 }
 
-// ─── DEMO LOGIN ─── (3-tier: Express backend → Direct Supabase → Offline demo)
-async function demoLogin(role) {
-  const credentials = {
-    farmer: { email: 'ramu@farmer.com',          password: 'farmer123' },
-    admin:  { email: 'admin@agrismarthub.com',    password: 'admin123'  },
-    buyer:  { email: 'priya@buyer.com',           password: 'buyer123'  },
-    expert: { email: 'expert@agri.com',           password: 'expert123' }
+// ─── DYNAMIC USER FORMATTER ───
+function formatUserObj(userData) {
+  const name = userData.name || 'User';
+  const parts = name.split(' ').filter(Boolean);
+  const avatar = parts.length > 1 ? (parts[0][0] + parts[1][0]).toUpperCase() : name.substring(0, 2).toUpperCase();
+  const roleColors = { farmer: '#16a34a', buyer: '#0d9488', expert: '#2563eb', admin: '#7c3aed', delivery: '#ea580c' };
+  
+  return {
+    id: userData.id || 'U-' + Date.now(),
+    email: userData.email || '',
+    name: name,
+    role: userData.role || 'farmer',
+    mobile: userData.mobile || '',
+    state: userData.state || '',
+    avatar: avatar,
+    avatarColor: roleColors[userData.role] || '#16a34a',
+    verified: true,
+    certCount: userData.certCount || 0,
+    totalSales: userData.totalSales || 0,
+    farmName: userData.farmName || (userData.role === 'farmer' ? `${name}'s Farm` : '')
   };
-
-  const creds = credentials[role];
-  if (!creds) {
-    const user = ASH.users[role];
-    if (user) loginSuccess(user);
-    return;
-  }
-
-  showToast(`Logging in as ${role}...`, 'info');
-
-  // ── Tier 1: Express backend ──────────────────────────────
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: creds.email, password: creds.password }),
-      signal: AbortSignal.timeout(4000)
-    });
-    const data = await res.json();
-    if (res.ok && data.success) {
-      localStorage.setItem('ash_token', data.token);
-      const user = { ...(ASH?.users?.[data.user.role] || {}), ...data.user };
-      loginSuccess(user);
-      return;
-    }
-    console.warn('Backend auth failed:', data.error);
-  } catch (_) {
-    console.warn('Backend unreachable — trying direct Supabase...');
-  }
-
-  // ── Tier 2: Direct Supabase browser client ───────────────
-  await window.supabaseClientReady;
-  if (window.supabaseClient) {
-    try {
-      const { data: sbData, error: sbError } = await window.supabaseClient.auth.signInWithPassword({
-        email: creds.email,
-        password: creds.password
-      });
-      if (!sbError && sbData?.session) {
-        localStorage.setItem('ash_token', sbData.session.access_token);
-        const meta = sbData.user.user_metadata || {};
-        const user = {
-          ...(ASH?.users?.[role] || {}),
-          id:    sbData.user.id,
-          email: sbData.user.email,
-          name:  meta.name  || ASH.users[role]?.name  || 'User',
-          role:  meta.role  || role,
-          state: meta.state || '',
-          mobile: meta.mobile || ''
-        };
-        showToast(`✅ Signed in as ${role} via Supabase`, 'success');
-        loginSuccess(user);
-        return;
-      }
-    } catch (_) {}
-  }
-
-  // ── Tier 3: Offline demo fallback ────────────────────────
-  showToast(`Demo mode: Signed in as ${role} (offline)`, 'success');
-  const mockUser = ASH.users[role];
-  if (mockUser) loginSuccess(mockUser);
 }
-
 
 // ─── LOGIN SUCCESS ───
 function loginSuccess(user) {
-  Session.set('user', user);
+  const formattedUser = formatUserObj(user);
+  Session.set('user', formattedUser);
   closeAuth();
-  showToast(`Welcome, ${user.name}! 🌾`, 'success');
+  showToast(`Welcome, ${formattedUser.name}! 🌾`, 'success');
   setTimeout(() => {
     window.location.href = 'app.html';
   }, 1000);
@@ -334,20 +318,22 @@ async function handleRegister() {
     const data = await res.json();
     
     if (res.ok && data.success) {
+      if (data.requiresEmailVerification || !data.token) {
+        showToast(data.message || 'Account created! Please check your email inbox to verify your account before logging in. 📧', 'info', 6000);
+        setTimeout(() => { showLoginForm(); }, 2000);
+        return;
+      }
+
       if (data.token) localStorage.setItem('ash_token', data.token);
-      
       showToast('Account created successfully! Welcome to AgroSmartHub 🌱', 'success');
 
-      // Build user object for the dashboard
       const user = {
-        ...(ASH?.users?.[data.user?.role || 'farmer'] || {}),
         ...data.user,
         farmName: document.getElementById('regFarmName')?.value || 'My Farm',
         certCount: 0,
         totalSales: 0
       };
 
-      // Save session and redirect to dashboard
       if (typeof Session !== 'undefined') Session.set('user', user);
       else localStorage.setItem('ash_user', JSON.stringify(user));
 
@@ -370,30 +356,133 @@ async function handleRegister() {
 async function showForgot() {
   const email = document.getElementById('loginEmail')?.value?.trim();
   if (!email) {
-    showToast('Enter your email address first, then click Forgot Password.', 'warning');
+    showToast('Enter your email address in the Login box first, then click Forgot Password.', 'warning');
     return;
   }
 
-  // Try backend first
+  const redirectUrl = window.location.origin + window.location.pathname + '#reset-password';
+  showToast('Sending reset link...', 'info');
+
   try {
-    await fetch(`${BACKEND_URL}/api/auth/forgot-password`, {
+    const res = await fetch(`${BACKEND_URL}/api/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-      signal: AbortSignal.timeout(3000)
+      body: JSON.stringify({ email, redirectTo: redirectUrl }),
+      signal: AbortSignal.timeout(4000)
     });
-  } catch (_) {
-    // Backend not available — try Supabase directly
-    await window.supabaseClientReady;
-    if (window.supabaseClient) {
-      await window.supabaseClient.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin + '/index.html'
-      });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      if (data.resetLink) {
+        showToast('Password reset link generated! Opening password reset...', 'success');
+        setTimeout(() => {
+          window.location.href = data.resetLink;
+        }, 1200);
+        return;
+      }
+      showToast(`Password reset link sent to ${email} 📧 Check your inbox!`, 'success');
+      return;
     }
+    if (data.error) {
+      showToast(data.error, 'error');
+      return;
+    }
+  } catch (_) {
+    // Backend unreachable — try Supabase directly
   }
 
-  showToast(`Password reset link sent to ${email} 📧`, 'success');
+  await window.supabaseClientReady;
+  if (window.supabaseClient) {
+    const { error } = await window.supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectUrl
+    });
+    if (error) {
+      showToast(error.message, 'error');
+      return;
+    }
+    showToast(`Password reset link sent to ${email} 📧 Check your inbox!`, 'success');
+  } else {
+    showToast('Unable to send reset email. Check backend/Supabase settings.', 'error');
+  }
 }
+
+// ─── HANDLE RESET PASSWORD ───
+async function handleResetPassword() {
+  const newPw = document.getElementById('resetNewPassword')?.value;
+  const confirmPw = document.getElementById('resetConfirmPassword')?.value;
+  const btnText = document.getElementById('resetBtnText');
+  const spinner = document.getElementById('resetSpinner');
+
+  if (!newPw || newPw.length < 6) {
+    showToast('Password must be at least 6 characters long', 'error');
+    return;
+  }
+  if (newPw !== confirmPw) {
+    showToast('Passwords do not match', 'error');
+    return;
+  }
+
+  if (btnText) btnText.style.display = 'none';
+  if (spinner) spinner.style.display = 'block';
+
+  try {
+    let updated = false;
+
+    // Try via Supabase JS client session
+    await window.supabaseClientReady;
+    if (window.supabaseClient) {
+      const { error } = await window.supabaseClient.auth.updateUser({ password: newPw });
+      if (!error) {
+        updated = true;
+      }
+    }
+
+    if (!updated) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      
+      const res = await fetch(`${BACKEND_URL}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword: newPw, token: accessToken }),
+        signal: AbortSignal.timeout(5000)
+      });
+      const resData = await res.json();
+      if (res.ok && resData.success) {
+        updated = true;
+      } else {
+        throw new Error(resData.error || 'Failed to update password');
+      }
+    }
+
+    if (updated) {
+      showToast('Password updated successfully! 🎉 Log in with your new password.', 'success');
+      if (window.history.replaceState) {
+        window.history.replaceState(null, null, window.location.pathname);
+      }
+      setTimeout(() => {
+        showLoginForm();
+      }, 1500);
+    }
+  } catch (err) {
+    showToast(err.message || 'Error resetting password. Link may have expired.', 'error');
+  } finally {
+    if (btnText) btnText.style.display = 'inline';
+    if (spinner) spinner.style.display = 'none';
+  }
+}
+
+// ─── CHECK RESET LINK IN URL ───
+function checkPasswordResetHash() {
+  const hash = window.location.hash;
+  if (hash.includes('type=recovery') || hash.includes('reset-password') || hash.includes('access_token')) {
+    setTimeout(() => {
+      showResetPasswordForm();
+    }, 600);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', checkPasswordResetHash);
+window.addEventListener('hashchange', checkPasswordResetHash);
 
 // ─── PASSWORD TOGGLE ───
 function togglePw(id) {
@@ -421,10 +510,10 @@ function getLocation() {
     }, () => {
       const gpsEl = document.getElementById('regGPS');
       if (gpsEl) gpsEl.value = '11.0168° N, 76.9558° E';
-      showToast('Using demo location: Coimbatore', 'success');
+      showToast('Using location: Coimbatore', 'success');
     });
   } else {
-    showToast('Geolocation not supported. Using demo.', 'warning');
+    showToast('Geolocation not supported. Using default location.', 'warning');
     const gpsEl = document.getElementById('regGPS');
     if (gpsEl) gpsEl.value = '11.0168° N, 76.9558° E';
   }

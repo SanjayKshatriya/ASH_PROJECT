@@ -1804,7 +1804,7 @@
   <script>
     var SUPABASE_URL = 'https://mekkljheshjekexwpnso.supabase.co';
     var SUPABASE_ANON_KEY = 'sb_publishable_seByaonj9SbXE9wOW0yLew_UVwVcsVC';
-    var BACKEND_URL = 'http://localhost:5000';
+    var BACKEND_URL = window.location.protocol === 'file:' ? 'http://localhost:5000' : window.location.protocol + '//' + window.location.hostname + ':5000';
 
     let supabaseClient;
     try {
