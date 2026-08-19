@@ -16,7 +16,7 @@ function renderAIDetection(container) {
           <div class="ai-upload-btns">
             <button class="ai-btn" onclick="document.getElementById('cropImageInput').click()">📁 Gallery</button>
             <button class="ai-btn" onclick="openCamera()">📷 Camera</button>
-            <button class="ai-btn" onclick="loadDemoImage()">🖼 Use Demo</button>
+            <button class="ai-btn" onclick="loadDemoImage()">🖼 Sample Crop</button>
           </div>
           <input type="file" id="cropImageInput" accept="image/*" style="display:none" onchange="handleImageUpload(this)" />
         </div>
@@ -122,7 +122,7 @@ function handleImageUpload(input) {
 
 function loadDemoImage() {
   // Use a placeholder SVG as demo image
-  const svgData = `<svg width="400" height="300" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#0d2b16"/><text x="200" y="140" text-anchor="middle" fill="#22c55e" font-size="60">🍅</text><text x="200" y="200" text-anchor="middle" fill="#bbf7d0" font-size="18">Tomato Crop</text><text x="200" y="225" text-anchor="middle" fill="#6b7280" font-size="12">Demo crop image</text></svg>`;
+  const svgData = `<svg width="400" height="300" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#0d2b16"/><text x="200" y="140" text-anchor="middle" fill="#22c55e" font-size="60">🍅</text><text x="200" y="200" text-anchor="middle" fill="#bbf7d0" font-size="18">Tomato Crop</text><text x="200" y="225" text-anchor="middle" fill="#6b7280" font-size="12">Sample crop image</text></svg>`;
   const dataUrl = `data:image/svg+xml;base64,${btoa(svgData)}`;
   showImageAndScan(dataUrl, randomInt(0, ASH.diseases.length - 1));
 }

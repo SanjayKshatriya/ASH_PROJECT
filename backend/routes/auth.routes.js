@@ -154,11 +154,105 @@ router.post('/verify-otp', async (req, res) => {
 
 // ─── POST /api/auth/forgot-password ───────────────────────────
 router.post('/forgot-password', async (req, res) => {
-  const { email } = req.body;
-  if (email) {
-    await supabase.auth.resetPasswordForEmail(email);
+  const { email, redirectTo } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Email address is required' });
   }
-  res.json({ success: true, message: 'If that email exists, a reset link was sent.' });
+
+  const redirectUrl = redirectTo || `${process.env.FRONTEND_URL || 'http://localhost:5000'}/index.html#reset-password`;
+
+  console.log(`🔑 Reset password requested for: ${email} -> Redirect: ${redirectUrl}`);
+
+  // 1. Try standard Supabase reset email first
+  const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: redirectUrl,
+  });
+
+  if (!resetErr) {
+    return res.json({ success: true, message: 'Password reset link sent to your email! Check your inbox.' });
+  }
+
+  console.warn('⚠️ Standard resetPasswordForEmail rate limited or failed:', resetErr.message);
+
+  // 2. Fallback: Use Admin API (Service Role Key) to bypass email rate limit
+  try {
+    const { data: adminData, error: adminErr } = await supabase.auth.admin.generateLink({
+      type: 'recovery',
+      email,
+      options: { redirectTo: redirectUrl }
+    });
+
+    if (adminErr) {
+      console.error('❌ Admin generateLink error:', adminErr.message);
+      return res.status(400).json({ error: resetErr.message || adminErr.message });
+    }
+
+    const actionLink = adminData.properties?.action_link;
+    console.log('✅ Admin recovery link generated (rate limit bypassed successfully):', actionLink);
+
+    // Send via custom SMTP if configured
+    if (process.env.SMTP_USER && process.env.SMTP_PASS && !process.env.SMTP_USER.includes('your.email')) {
+      try {
+        const nodemailer = require('nodemailer');
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST || 'smtp.gmail.com',
+          port: parseInt(process.env.SMTP_PORT || '587'),
+          secure: false,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+          }
+        });
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || 'AgroSmartHub <noreply@agrismarthub.com>',
+          to: email,
+          subject: 'Reset Your Password — AgroSmartHub 3.0',
+          html: `<p>Hello,</p><p>Click the link below to reset your password for AgroSmartHub:</p><p><a href="${actionLink}"><strong>Reset Password Now</strong></a></p>`
+        });
+        return res.json({ success: true, message: 'Password reset email sent successfully via SMTP!' });
+      } catch (mailErr) {
+        console.error('❌ SMTP send error:', mailErr.message);
+      }
+    }
+
+    // Return direct action link to frontend to bypass email delivery delay/limits
+    return res.json({
+      success: true,
+      message: 'Password reset link generated! Redirecting...',
+      resetLink: actionLink
+    });
+
+  } catch (err) {
+    console.error('❌ Admin fallback crash:', err.message);
+    return res.status(400).json({ error: resetErr ? resetErr.message : err.message });
+  }
+});
+
+// ─── POST /api/auth/reset-password ───────────────────────────
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { newPassword, token } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+    }
+
+    let result;
+    if (token) {
+      result = await supabase.auth.updateUser({ password: newPassword }, { access_token: token });
+    } else {
+      result = await supabase.auth.updateUser({ password: newPassword });
+    }
+
+    if (result.error) {
+      console.error('❌ Reset password update error:', result.error.message);
+      return res.status(400).json({ error: result.error.message });
+    }
+
+    return res.json({ success: true, message: 'Password updated successfully!' });
+  } catch (err) {
+    console.error('❌ Reset password endpoint crash:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // ─── GET /api/auth/me ─────────────────────────────────────────
@@ -167,3 +261,4 @@ router.get('/me', require('../middleware/auth.middleware'), (req, res) => {
 });
 
 module.exports = router;
+

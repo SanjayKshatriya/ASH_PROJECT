@@ -1,0 +1,16 @@
+.git
+.github
+.idea
+Test Results
+android
+appium
+backend
+database
+e2e
+selenium
+supabase
+node_modules
+*.xlsx
+*.log
+*.bat
+*.py

@@ -95,13 +95,21 @@ fun AppNavGraph(
             )
         }
         
+        composable(Routes.NOTIFICATIONS) {
+            com.agrismarthub.app.ui.screens.NotificationsScreen(
+                onBack = { navController.navigateUp() }
+            )
+        }
+        
         composable(Routes.AI_DETECTION) {
             com.agrismarthub.app.ui.screens.AIDetectionScreen(
                 onBack = { navController.navigateUp() }
             )
         }
         composable(Routes.IOT_MONITOR) {
+            val user by authViewModel.currentUser.collectAsState()
             com.agrismarthub.app.ui.screens.IoTMonitorScreen(
+                user = user,
                 onBack = { navController.navigateUp() }
             )
         }

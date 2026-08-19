@@ -14,23 +14,34 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.agrismarthub.app.data.models.SessionUser
+import com.agrismarthub.app.viewmodel.IotViewModel
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IoTMonitorScreen(
-    onBack: () -> Unit
+    user: SessionUser?,
+    onBack: () -> Unit,
+    viewModel: IotViewModel = hiltViewModel()
 ) {
-    var isRefreshing by remember { mutableStateOf(false) }
+    val latestReading by viewModel.latestReading.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     
-    // Mock Sensor Data
+    // Auto-refresh when screen opens
+    LaunchedEffect(Unit) {
+        user?.id?.let { viewModel.fetchLatestData(it) }
+    }
+    
+    // Map database reading to UI sensors list
     val sensors = listOf(
-        SensorData("Temperature", "26.5", "°C", "🌡️", "Normal"),
-        SensorData("Soil Moisture", "42", "%", "💧", "Good"),
-        SensorData("Humidity", "65", "%", "☁️", "Normal"),
-        SensorData("Soil pH", "6.8", "pH", "⚗️", "Optimal"),
-        SensorData("Light", "850", "Lux", "☀️", "High"),
-        SensorData("Water Tank", "80", "%", "🛢️", "Full")
+        SensorData("Temperature", latestReading?.temperature?.toString() ?: "26.5", "°C", "🌡️", if(latestReading != null) "Live" else "Normal"),
+        SensorData("Soil Moisture", latestReading?.soilMoisture?.toString() ?: "42", "%", "💧", if(latestReading != null) "Live" else "Good"),
+        SensorData("Humidity", latestReading?.humidity?.toString() ?: "65", "%", "☁️", if(latestReading != null) "Live" else "Normal"),
+        SensorData("Soil pH", latestReading?.soilPh?.toString() ?: "6.8", "pH", "⚗️", if(latestReading != null) "Live" else "Optimal"),
+        SensorData("Light", latestReading?.lightIntensity?.toString() ?: "850", "Lux", "☀️", if(latestReading != null) "Live" else "High"),
+        SensorData("Water Tank", latestReading?.waterTank?.toString() ?: "80", "%", "🛢️", if(latestReading != null) "Live" else "Full")
     )
 
     Scaffold(
@@ -44,20 +55,14 @@ fun IoTMonitorScreen(
                 },
                 actions = {
                     IconButton(onClick = { 
-                        isRefreshing = true 
-                        // Simulate network call
+                        user?.id?.let { viewModel.fetchLatestData(it) }
                     }) {
-                        if (isRefreshing) {
+                        if (isLoading) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
                                 color = MaterialTheme.colorScheme.onSurface,
                                 strokeWidth = 2.dp
                             )
-                            // Simulate end of refresh
-                            LaunchedEffect(Unit) {
-                                delay(1000)
-                                isRefreshing = false
-                            }
                         } else {
                             Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                         }

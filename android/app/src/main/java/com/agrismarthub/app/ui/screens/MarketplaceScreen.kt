@@ -18,22 +18,25 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.rememberAsyncImagePainter
 import com.agrismarthub.app.data.models.Product
+import com.agrismarthub.app.viewmodel.ProductViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MarketplaceScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    viewModel: ProductViewModel = hiltViewModel()
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    val products by viewModel.products.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
     
-    // Mock Data based on the web app's DB schema
-    val products = listOf(
-        Product(id = "1", name = "Organic Tomatoes", category = "Vegetables", price = 45.0, unit = "kg", quantity = 100.0, qualityGrade = "A", isCertified = true),
-        Product(id = "2", name = "Basmati Rice", category = "Grains", price = 120.0, unit = "kg", quantity = 500.0, qualityGrade = "A+", isCertified = true),
-        Product(id = "3", name = "Fresh Spinach", category = "Vegetables", price = 30.0, unit = "kg", quantity = 50.0, qualityGrade = "B", isCertified = false)
-    )
+    // Trigger search when query changes (with simple debouncing logic could be added in VM)
+    LaunchedEffect(searchQuery) {
+        viewModel.search(searchQuery)
+    }
 
     Scaffold(
         topBar = {
@@ -42,6 +45,15 @@ fun MarketplaceScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).padding(end = 16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -71,13 +83,19 @@ fun MarketplaceScreen(
                 )
             )
             
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(products) { product ->
-                    ProductCard(product)
+            if (products.isEmpty() && !isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No products found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(products) { product ->
+                        ProductCard(product)
+                    }
                 }
             }
         }
