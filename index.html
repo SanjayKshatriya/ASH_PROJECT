@@ -1255,7 +1255,7 @@
     const { data, error } = await client.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin + '/app.html'
+        redirectTo: new URL('app.html', window.location.href).href
       }
     });
     if (error) {
