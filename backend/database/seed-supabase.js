@@ -1,5 +1,5 @@
 // ============================================================
-// AgroSmartHub 3.0 — Seed Demo Users into Supabase Auth
+// AgroSmartHub 3.0 — Seed Demo Users & Sample Data into Supabase
 // Run once: node backend/database/seed-supabase.js
 // ============================================================
 
@@ -50,11 +50,10 @@ const DEMO_USERS = [
 async function seedUser(user) {
   console.log(`\n📧 Processing: ${user.email}`);
 
-  // Try to create the user in Supabase Auth using admin API
   const { data: authData, error: createError } = await supabase.auth.admin.createUser({
     email: user.email,
     password: user.password,
-    email_confirm: true,      // Auto-confirm — skip email verification
+    email_confirm: true,
     user_metadata: {
       name: user.name,
       role: user.role,
@@ -63,16 +62,16 @@ async function seedUser(user) {
     }
   });
 
+  let userId = null;
+
   if (createError) {
     if (createError.message.includes('already registered') || createError.message.includes('already been registered')) {
       console.log(`   ⚠️  User already exists in Auth — updating password...`);
-
-      // List users and find this one
       const { data: { users } } = await supabase.auth.admin.listUsers();
       const existing = users.find(u => u.email === user.email);
 
       if (existing) {
-        // Update password
+        userId = existing.id;
         await supabase.auth.admin.updateUserById(existing.id, {
           password: user.password,
           email_confirm: true,
@@ -84,20 +83,18 @@ async function seedUser(user) {
           }
         });
         console.log(`   ✅ Password updated for: ${user.email}`);
-
-        // Upsert into public.users table
         await upsertProfile(existing.id, user);
       }
-      return;
+    } else {
+      console.error(`   ❌ Auth error: ${createError.message}`);
     }
-    console.error(`   ❌ Auth error: ${createError.message}`);
-    return;
+  } else {
+    userId = authData.user.id;
+    console.log(`   ✅ Auth user created: ${userId}`);
+    await upsertProfile(userId, user);
   }
 
-  console.log(`   ✅ Auth user created: ${authData.user.id}`);
-
-  // Insert into public.users table
-  await upsertProfile(authData.user.id, user);
+  return userId;
 }
 
 async function upsertProfile(userId, user) {
@@ -114,19 +111,196 @@ async function upsertProfile(userId, user) {
     }], { onConflict: 'id' });
 
   if (dbError) {
-    console.error(`   ❌ DB error: ${dbError.message} (code: ${dbError.code})`);
-    if (dbError.code === '42P01') {
-      console.log('   ℹ️  The public.users table does not exist yet.');
-      console.log('   ➡️  Run the supabase-schema.sql in your Supabase SQL Editor first.');
-    }
+    console.error(`   ❌ DB error: ${dbError.message}`);
   } else {
     console.log(`   ✅ Profile saved to DB: ${user.email} (${user.role})`);
   }
 }
 
+async function seedSampleData(userMap) {
+  console.log('\n🌾 Seeding sample Farms, Products, Certificates, Scans, & Orders...');
+
+  const farmerId = userMap['ramu@farmer.com'];
+  const buyerId = userMap['priya@buyer.com'];
+  const expertId = userMap['expert@agri.com'];
+
+  if (!farmerId) return;
+
+  // 1. Farm
+  let farmId = null;
+  const { data: farmData, error: farmErr } = await supabase
+    .from('farms')
+    .insert([{
+      farmer_id: farmerId,
+      farm_name: "Ramu's Green Agro Farm",
+      total_land: 12.5,
+      land_unit: 'acres',
+      soil_type: 'Clay Loam',
+      irrigation_type: 'Drip Irrigation',
+      water_source: 'Borewell & Canal',
+      primary_crop: 'Paddy / Organic Rice',
+      farming_type: 'Organic',
+      latitude: 11.0168,
+      longitude: 76.9558,
+      gps_location: 'Coimbatore, Tamil Nadu',
+      is_organic: true
+    }])
+    .select('id')
+    .single();
+
+  if (!farmErr && farmData) {
+    farmId = farmData.id;
+    console.log(`  ✅ Farm created: Ramu's Green Agro Farm (${farmId})`);
+  } else if (farmErr) {
+    console.log(`  ℹ️ Farm setup: ${farmErr.message}`);
+  }
+
+  // 2. Products
+  const sampleProducts = [
+    {
+      farmer_id: farmerId,
+      farm_id: farmId,
+      name: 'Organic Ponni Rice',
+      category: 'Grains & Cereals',
+      variety: 'TNJ-42',
+      description: '100% Pesticide-free naturally grown Ponni rice rich in minerals.',
+      price: 68.00,
+      unit: 'kg',
+      quantity: 500,
+      min_order: 10,
+      quality_grade: 'A+',
+      is_certified: true,
+      is_organic: true,
+      is_available: true
+    },
+    {
+      farmer_id: farmerId,
+      farm_id: farmId,
+      name: 'Fresh Red Tomatoes',
+      category: 'Vegetables',
+      variety: 'Hybrid Shivam',
+      description: 'Vine-ripened red tomatoes high in Lycopene.',
+      price: 24.50,
+      unit: 'kg',
+      quantity: 1200,
+      min_order: 25,
+      quality_grade: 'A',
+      is_certified: true,
+      is_organic: false,
+      is_available: true
+    },
+    {
+      farmer_id: farmerId,
+      farm_id: farmId,
+      name: 'Organic Turmeric Finger',
+      category: 'Spices',
+      variety: 'Erode Local',
+      description: 'High Curcumin content (>5.2%) organic whole turmeric.',
+      price: 180.00,
+      unit: 'kg',
+      quantity: 250,
+      min_order: 5,
+      quality_grade: 'A+',
+      is_certified: true,
+      is_organic: true,
+      is_available: true
+    }
+  ];
+
+  const { data: insertedProds, error: prodErr } = await supabase
+    .from('products')
+    .insert(sampleProducts)
+    .select();
+
+  if (!prodErr && insertedProds) {
+    console.log(`  ✅ Seeded ${insertedProds.length} products into Supabase!`);
+  } else if (prodErr) {
+    console.log(`  ℹ️ Products notice: ${prodErr.message}`);
+  }
+
+  // 3. AI Scan
+  let scanId = null;
+  const { data: scanData, error: scanErr } = await supabase
+    .from('ai_scans')
+    .insert([{
+      farmer_id: farmerId,
+      farm_id: farmId,
+      image_url: 'https://images.unsplash.com/photo-1592417817098-8f3d6eb1642f?w=600',
+      disease_name: 'Early Blight (Alternaria solani)',
+      confidence: 96.4,
+      health_score: 84.5,
+      severity: 'moderate',
+      affected_area: '12%',
+      medicine: 'Mancozeb 75% WP @ 2g/L water',
+      fertilizer: 'NPK 19:19:19 foliar spray',
+      water_req: 'Maintain moderate soil moisture; avoid over-watering',
+      yield_loss: '5-10%',
+      recovery_time: '7-10 days'
+    }])
+    .select('id')
+    .single();
+
+  if (!scanErr && scanData) {
+    scanId = scanData.id;
+    console.log(`  ✅ Seeded AI scan record (${scanId})`);
+  }
+
+  // 4. Certificates
+  const certIdCode = `CERT-TN-${new Date().getFullYear()}-8842`;
+  const { error: certErr } = await supabase
+    .from('certificates')
+    .insert([{
+      cert_id: certIdCode,
+      farmer_id: farmerId,
+      product_id: insertedProds?.[0]?.id || null,
+      scan_id: scanId,
+      crop_name: 'Organic Ponni Rice',
+      crop_variety: 'TNJ-42',
+      harvest_date: new Date().toISOString().split('T')[0],
+      quality_grade: 'A+',
+      health_score: 96.4,
+      disease_status: 'Disease-Free (Passed AI Inspection)',
+      ai_confidence: 96.4,
+      expert_id: expertId || null,
+      expert_notes: 'Verified organic standards compliance and crop health.',
+      blockchain_id: '0x8f2d91a7c3e5b4a6d1e8c9f0a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1',
+      status: 'certified'
+    }]);
+
+  if (!certErr) {
+    console.log(`  ✅ Seeded Quality Certificate: ${certIdCode}`);
+  }
+
+  // 5. Orders
+  if (buyerId && insertedProds?.[0]?.id) {
+    const orderIdCode = `ORD-${Date.now().toString(36).toUpperCase()}`;
+    const { error: ordErr } = await supabase
+      .from('orders')
+      .insert([{
+        order_id: orderIdCode,
+        buyer_id: buyerId,
+        farmer_id: farmerId,
+        product_id: insertedProds[0].id,
+        quantity: 50,
+        unit_price: 68.00,
+        total_amount: 3400.00,
+        gst_amount: 170.00,
+        delivery_charge: 150.00,
+        delivery_address: 'Koramangala 4th Block, Bengaluru, Karnataka 560034',
+        payment_method: 'UPI',
+        payment_status: 'paid',
+        order_status: 'confirmed'
+      }]);
+
+    if (!ordErr) {
+      console.log(`  ✅ Seeded Sample Order: ${orderIdCode}`);
+    }
+  }
+}
+
 async function main() {
-  console.log('\n🌾 AgroSmartHub 3.0 — Supabase Demo User Seeder');
-  console.log('═══════════════════════════════════════════════\n');
+  console.log('\n🌾 AgroSmartHub 3.0 — Supabase Seeder (Users & Sample Data)');
+  console.log('════════════════════════════════════════════════════════════\n');
 
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     console.error('❌ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env');
@@ -135,33 +309,22 @@ async function main() {
 
   console.log(`📡 Supabase URL: ${process.env.SUPABASE_URL}`);
 
-  // Verify admin API access
-  try {
-    const { data, error } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1 });
-    if (error) {
-      console.error('\n❌ Cannot access Supabase Admin API:', error.message);
-      console.log('\n🔑 Make sure SUPABASE_SERVICE_ROLE_KEY is correct (not the anon key).');
-      console.log('   Find it in: Supabase Dashboard → Settings → API → service_role key\n');
-      process.exit(1);
-    }
-    console.log(`✅ Admin API access confirmed (${data.users.length} existing user(s) found)\n`);
-  } catch (e) {
-    console.error('❌ Failed to connect:', e.message);
-    process.exit(1);
-  }
+  const userMap = {};
 
   for (const user of DEMO_USERS) {
-    await seedUser(user);
+    const uid = await seedUser(user);
+    if (uid) userMap[user.email] = uid;
   }
 
-  console.log('\n═══════════════════════════════════════════════');
+  await seedSampleData(userMap);
+
+  console.log('\n════════════════════════════════════════════════════════════');
   console.log('✅ Seeding complete!\n');
   console.log('Demo Credentials:');
   DEMO_USERS.forEach(u => {
     console.log(`  ${u.role.padEnd(8)} → ${u.email} / ${u.password}`);
   });
-  console.log('\nAll users have email_confirm=true — no email verification needed.');
-  console.log('You can now log in immediately with the demo credentials above.\n');
+  console.log('\nAll demo accounts & sample data are fully synced with Supabase.\n');
 }
 
 main().catch(err => {

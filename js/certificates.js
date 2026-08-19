@@ -70,60 +70,38 @@ function renderCertificates(container) {
       </div>
 
       <!-- Previous Certificates -->
-      <div class="glass-card" style="padding:20px">
-        <h3 style="font-size:.9rem;font-weight:700;margin-bottom:16px">📜 Previous Certificates</h3>
-        <div id="prevCertsList">
-          ${[
-            {id:'CERT-TN-2025-0847', crop:'Tomato', grade:'A+', date:'Jul 5, 2025', status:'certified'},
-            {id:'CERT-TN-2025-0821', crop:'Maize', grade:'A', date:'Jun 22, 2025', status:'certified'},
-            {id:'CERT-TN-2025-0799', crop:'Onion', grade:'B', date:'Jun 10, 2025', status:'certified'},
-            {id:'CERT-TN-2025-0784', crop:'Tomato', grade:'A+', date:'May 30, 2025', status:'certified'}
-          ].map(c => `
-            <div style="display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;cursor:pointer;transition:var(--transition)" onmouseover="this.style.borderColor='var(--border-hover)'" onmouseout="this.style.borderColor='var(--border)'">
-              <span style="font-size:1.2rem">🏅</span>
-              <div style="flex:1">
-                <div style="font-size:.8rem;font-weight:700">${c.id}</div>
-                <div style="font-size:.7rem;color:var(--text-muted)">🌾 ${c.crop} · ${c.date}</div>
-              </div>
-              <span style="padding:2px 8px;background:rgba(22,163,74,0.15);color:var(--green-400);border-radius:var(--radius-full);font-size:.7rem;font-weight:700">Grade ${c.grade}</span>
-              <span style="padding:2px 8px;background:rgba(22,163,74,0.1);color:var(--green-400);border-radius:var(--radius-full);font-size:.65rem;font-weight:600">✅</span>
+async function loadPreviousCertificates() {
+  const container = document.getElementById('prevCertsList');
+  if (!container) return;
+  try {
+    const backendUrl = window.location.protocol === 'file:' ? 'http://localhost:5000' : `${window.location.protocol}//${window.location.hostname}:5000`;
+    const token = localStorage.getItem('ash_token');
+    const res = await fetch(`${backendUrl}/api/certificates?farmerId=${currentUser.id || ''}`, {
+      headers: { ...(token && { 'Authorization': `Bearer ${token}` }) },
+      signal: AbortSignal.timeout(3000)
+    });
+    if (res.ok) {
+      const result = await res.json();
+      if (result.success && Array.isArray(result.data) && result.data.length > 0) {
+        container.innerHTML = result.data.map(c => `
+          <div style="display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;cursor:pointer;transition:var(--transition)" onmouseover="this.style.borderColor='var(--border-hover)'" onmouseout="this.style.borderColor='var(--border)'">
+            <span style="font-size:1.2rem">🏅</span>
+            <div style="flex:1">
+              <div style="font-size:.8rem;font-weight:700">${c.cert_id}</div>
+              <div style="font-size:.7rem;color:var(--text-muted)">🌾 ${c.crop_name || 'Crop'} · ${new Date(c.created_at || Date.now()).toLocaleDateString()}</div>
             </div>
-          `).join('')}
-        </div>
-      </div>
-    </div>
-
-    <!-- Certificate Preview (hidden until generated) -->
-    <div id="certPreviewSection" style="display:none">
-      <h3 style="font-size:.9rem;font-weight:700;margin-bottom:16px">🏅 Certificate Preview</h3>
-      <div class="cert-container">
-        <div class="certificate" id="certificateEl">
-          <div class="cert-bg-pattern"></div>
-          <div class="cert-header">
-            <div class="cert-logo">🌾</div>
-            <div class="cert-org-name">AGRISMARTHUB</div>
-            <div class="cert-title">Agricultural Quality Certificate</div>
-            <div class="cert-subtitle">DIGITAL · BLOCKCHAIN VERIFIED · AI CERTIFIED</div>
+            <span style="padding:2px 8px;background:rgba(22,163,74,0.15);color:var(--green-400);border-radius:var(--radius-full);font-size:.7rem;font-weight:700">Grade ${c.quality_grade || 'A+'}</span>
+            <span style="padding:2px 8px;background:rgba(22,163,74,0.1);color:var(--green-400);border-radius:var(--radius-full);font-size:.65rem;font-weight:600">✅</span>
           </div>
-          <hr class="cert-divider" />
-          <div class="cert-body" id="certBody"></div>
-          <div class="cert-blockchain" id="certBlockchain"></div>
-          <div class="cert-footer" id="certFooter"></div>
-        </div>
-
-        <!-- Actions -->
-        <div class="cert-actions">
-          <button class="btn-cert btn-cert-primary" onclick="downloadCertPDF()">📥 Download PDF</button>
-          <button class="btn-cert btn-cert-secondary" onclick="printCert()">🖨️ Print</button>
-          <button class="btn-cert btn-cert-secondary" onclick="shareCert()">📤 Share</button>
-          <button class="btn-cert btn-cert-secondary" onclick="navigateTo('marketplace')">🛒 List for Sale</button>
-        </div>
-      </div>
-    </div>
-  `;
+        `).join('');
+      }
+    }
+  } catch (_) {
+    // Keep standard list on offline fallback
+  }
 }
 
-function generateAndShowCert() {
+async function generateAndShowCert() {
   const certData = Session.get('currentCert') || {};
 
   // Update from form
@@ -136,6 +114,38 @@ function generateAndShowCert() {
   if (variety) certData.cropVariety = variety;
   if (harvestDate) certData.harvestDate = new Date(harvestDate).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'});
   if (grade) certData.grade = grade;
+
+  // ── Persist to Supabase backend ─────────────────
+  try {
+    const backendUrl = window.location.protocol === 'file:' ? 'http://localhost:5000' : `${window.location.protocol}//${window.location.hostname}:5000`;
+    const token = localStorage.getItem('ash_token');
+    const res = await fetch(`${backendUrl}/api/certificates/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      },
+      body: JSON.stringify({
+        cropName: certData.cropName,
+        cropVariety: certData.cropVariety,
+        harvestDate: certData.harvestDate,
+        grade: certData.grade,
+        farmerId: currentUser.id,
+        state: currentUser.state || 'TN'
+      })
+    });
+    if (res.ok) {
+      const apiResult = await res.json();
+      if (apiResult.success && apiResult.data) {
+        certData.certId = apiResult.data.cert_id || certData.certId;
+        certData.blockchainId = apiResult.data.blockchain_id || certData.blockchainId;
+      }
+    }
+  } catch (err) {
+    console.warn('Backend offline, using generated local cert credentials');
+  }
+
+  Session.set('currentCert', certData);
 
   Session.set('currentCert', certData);
 

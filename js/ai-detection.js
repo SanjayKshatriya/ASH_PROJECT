@@ -161,7 +161,7 @@ function runScanAnimation(diseaseIdx) {
   }, 350);
 }
 
-function showResults(diseaseIdx) {
+async function showResults(diseaseIdx) {
   const disease = ASH.diseases[diseaseIdx];
   lastDetectedDisease = disease;
   const scanning = document.getElementById('aiScanning');
@@ -215,7 +215,26 @@ function showResults(diseaseIdx) {
     `).join('')}
   `;
 
-  // Save to history
+  // ── Save to Supabase backend API ─────────────────
+  try {
+    const backendUrl = window.location.protocol === 'file:' ? 'http://localhost:5000' : `${window.location.protocol}//${window.location.hostname}:5000`;
+    const token = localStorage.getItem('ash_token');
+    await fetch(`${backendUrl}/api/ai/detect`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      },
+      body: JSON.stringify({
+        diseaseName: disease.name,
+        confidence: parseFloat(confidence)
+      })
+    });
+  } catch (err) {
+    console.warn('Backend scan save offline fallback');
+  }
+
+  // Save to local history
   saveScanHistory({ disease: disease.name, emoji: disease.emoji, confidence, healthPct, severity: disease.severity });
   renderScanHistory();
   showToast(`Analysis complete: ${disease.name}`, disease.severity === 'healthy' ? 'success' : disease.severity === 'critical' ? 'error' : 'warning');

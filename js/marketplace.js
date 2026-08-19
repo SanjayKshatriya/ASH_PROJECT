@@ -74,14 +74,48 @@ function filterCategory(cat) {
   filterProducts();
 }
 
-function filterProducts() {
+let cachedApiProducts = null;
+
+async function fetchMarketplaceProducts() {
+  try {
+    const backendUrl = window.location.protocol === 'file:' ? 'http://localhost:5000' : `${window.location.protocol}//${window.location.hostname}:5000`;
+    const res = await fetch(`${backendUrl}/api/products`, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      const result = await res.json();
+      if (result.success && Array.isArray(result.data) && result.data.length > 0) {
+        cachedApiProducts = result.data.map(p => ({
+          id: p.id,
+          name: p.name,
+          category: (p.category || 'grains').toLowerCase(),
+          farmer: p.farmer?.name || 'Ramu Kumar',
+          location: p.farmer?.state || 'Tamil Nadu',
+          price: parseFloat(p.price) || 50,
+          unit: p.unit || 'kg',
+          grade: p.quality_grade || 'A',
+          certified: !!p.is_certified,
+          desc: p.description || 'Fresh farm produce',
+          emoji: p.category === 'Vegetables' ? '🍅' : p.category === 'Spices' ? '🟡' : '🌾',
+          quantity: parseFloat(p.quantity) || 100
+        }));
+      }
+    }
+  } catch (_) {
+    // Graceful fallback to static ASH.products
+  }
+}
+
+async function filterProducts() {
   const search = document.getElementById('marketSearch')?.value.toLowerCase() || '';
   const certOnly = document.getElementById('certifiedOnly')?.checked || false;
   const sort = document.getElementById('sortSelect')?.value || 'default';
 
-  let filtered = [...ASH.products];
+  if (!cachedApiProducts) {
+    await fetchMarketplaceProducts();
+  }
+
+  let filtered = cachedApiProducts ? [...cachedApiProducts] : [...ASH.products];
   if (activeCategory !== 'all') filtered = filtered.filter(p => p.category === activeCategory);
-  if (search) filtered = filtered.filter(p => p.name.toLowerCase().includes(search) || p.farmer.toLowerCase().includes(search) || p.location.toLowerCase().includes(search));
+  if (search) filtered = filtered.filter(p => p.name.toLowerCase().includes(search) || p.farmer.toLowerCase().includes(search) || (p.location && p.location.toLowerCase().includes(search)));
   if (certOnly) filtered = filtered.filter(p => p.certified);
 
   if (sort === 'price-asc') filtered.sort((a,b) => a.price - b.price);

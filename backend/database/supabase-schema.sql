@@ -4,7 +4,7 @@
 -- Run this in your Supabase SQL Editor
 
 -- ─── USERS (Linked to Supabase Auth) ─────────────────────────
-CREATE TABLE public.users (
+CREATE TABLE IF NOT EXISTS public.users (
   id            UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   farmer_id     VARCHAR(20) UNIQUE,
   name          VARCHAR(100) NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE public.users (
 );
 
 -- ─── FARMS ───────────────────────────────────────────────────
-CREATE TABLE public.farms (
+CREATE TABLE IF NOT EXISTS public.farms (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   farmer_id       UUID REFERENCES public.users(id) ON DELETE CASCADE,
   farm_name       VARCHAR(150) NOT NULL,
@@ -44,7 +44,7 @@ CREATE TABLE public.farms (
 );
 
 -- ─── PRODUCTS ────────────────────────────────────────────────
-CREATE TABLE public.products (
+CREATE TABLE IF NOT EXISTS public.products (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   farmer_id       UUID REFERENCES public.users(id) ON DELETE CASCADE,
   farm_id         UUID REFERENCES public.farms(id),
@@ -70,7 +70,7 @@ CREATE TABLE public.products (
 );
 
 -- ─── AI SCANS ─────────────────────────────────────────────────
-CREATE TABLE public.ai_scans (
+CREATE TABLE IF NOT EXISTS public.ai_scans (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   farmer_id       UUID REFERENCES public.users(id) ON DELETE CASCADE,
   farm_id         UUID REFERENCES public.farms(id),
@@ -92,7 +92,7 @@ CREATE TABLE public.ai_scans (
 );
 
 -- ─── CERTIFICATES ─────────────────────────────────────────────
-CREATE TABLE public.certificates (
+CREATE TABLE IF NOT EXISTS public.certificates (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   cert_id         VARCHAR(30) UNIQUE NOT NULL,
   farmer_id       UUID REFERENCES public.users(id),
@@ -118,7 +118,7 @@ CREATE TABLE public.certificates (
 );
 
 -- ─── ORDERS ───────────────────────────────────────────────────
-CREATE TABLE public.orders (
+CREATE TABLE IF NOT EXISTS public.orders (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id        VARCHAR(30) UNIQUE NOT NULL,
   buyer_id        UUID REFERENCES public.users(id),
