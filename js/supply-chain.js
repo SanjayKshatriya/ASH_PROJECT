@@ -123,7 +123,7 @@ function renderCommunity(container) {
         <!-- New Post -->
         <div class="glass-card" style="padding:20px;margin-bottom:20px">
           <div style="display:flex;gap:12px">
-            <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,${currentUser.avatarColor||'#16a34a'},#0d9488);display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">${currentUser.avatar}</div>
+            <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,${currentUser.avatarColor||'#16a34a'},#0d9488);display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;overflow:hidden">${typeof getAvatarHtml === 'function' ? getAvatarHtml(currentUser) : (currentUser.name ? currentUser.name.substring(0, 2).toUpperCase() : 'U')}</div>
             <div style="flex:1">
               <textarea id="newPostText" placeholder="Share your farming experience, ask a question, or post an update…" rows="3" style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);padding:10px 14px;font-family:Outfit,sans-serif;font-size:.875rem;resize:none"></textarea>
               <div style="display:flex;gap:8px;margin-top:8px">
