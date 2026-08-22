@@ -57,12 +57,20 @@ This document summarizes the authentication system update, database verification
 - **Browser Auto-Sync ([js/supabase-client.js](file:///c:/Users/Hp/Downloads/PROJECT-ASH/js/supabase-client.js#L74-L115))**: Configured `onAuthStateChange` to listen for `'SIGNED_IN'` OAuth events and automatically upsert Google users into the `public.users` PostgreSQL table in Supabase.
 - **Backend API Endpoint ([backend/routes/auth.routes.js](file:///c:/Users/Hp/Downloads/PROJECT-ASH/backend/routes/auth.routes.js#L140-L173))**: Added `POST /api/auth/google-sync` route to synchronize OAuth user profiles via Service Role Key.
 
-### Android App & APK Build
-- **Web App Bundling ([scripts/sync_web_assets.js](file:///c:/Users/Hp/Downloads/PROJECT-ASH/scripts/sync_web_assets.js))**: All web pages (`index.html`, `app.html`, `js/`, `css/`, `sw.js`) are bundled into `android/app/src/main/assets/` as a native Android WebView app.
-- **Automated Cloud APK Build ([.github/workflows/android-build.yml](file:///c:/Users/Hp/Downloads/PROJECT-ASH/.github/workflows/android-build.yml))**: GitHub Actions automatically compiles the Android APK (`app-debug.apk`) on every push.
+### Real-Time Android Phone Access (Wi-Fi)
+Your computer server is configured and running on `0.0.0.0:5000` to serve the application in real-time to any Android phone connected to your Wi-Fi network:
+
+1. **Ensure PC & Phone are on the same Wi-Fi network**.
+2. **Open Chrome / Safari on your Android Phone**:
+   - Type: `http://172.23.48.197:5000`
+3. **Install as Native Web App (PWA)**:
+   - Tap the 3-dots menu in Chrome → select **Add to Home screen** / **Install App**.
+   - The app will open in fullscreen mode on your Android phone, connecting in real-time to your computer's backend and Supabase database (`https://mekkljheshjekexwpnso.supabase.co`).
 
 ### Download & Access Links:
+- **Local PC Access**: [http://localhost:5000](http://localhost:5000)
+- **Mobile Wi-Fi URL**: `http://172.23.48.197:5000`
 - **Live Web Application (GitHub Pages)**: [SanjayKshatriya.github.io/ASH_PROJECT](https://SanjayKshatriya.github.io/ASH_PROJECT/)
 - **GitHub Actions APK Build Workflow**: [github.com/SanjayKshatriya/ASH_PROJECT/actions](https://github.com/SanjayKshatriya/ASH_PROJECT/actions)
 - **Repository**: [SanjayKshatriya/ASH_PROJECT](https://github.com/SanjayKshatriya/ASH_PROJECT)
-- **Latest Commit**: `6af690e7` - `build: trigger cloud Android APK build for web app assets`
+- **Latest Commit**: `c39b9cd8` - `feat(server): enable 0.0.0.0 network listening for real-time mobile app access`
