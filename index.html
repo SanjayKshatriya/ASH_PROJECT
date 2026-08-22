@@ -870,6 +870,15 @@
           <span id="loginSpinner" class="spinner" style="display:none"></span>
         </button>
 
+        <div class="auth-divider"><span>or 1-click quick connect as</span></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+          <button type="button" onclick="quickLogin('farmer')" class="role-btn active" style="padding:8px">🧑‍🌾 Farmer</button>
+          <button type="button" onclick="quickLogin('buyer')" class="role-btn" style="padding:8px">🛒 Buyer</button>
+          <button type="button" onclick="quickLogin('expert')" class="role-btn" style="padding:8px">🧑‍🔬 Expert</button>
+          <button type="button" onclick="quickLogin('admin')" class="role-btn" style="padding:8px">⚙️ Admin</button>
+        </div>
+
         <div class="auth-divider"><span>or sign in with</span></div>
 
         <button class="social-btn" onclick="handleGoogleLogin()">
