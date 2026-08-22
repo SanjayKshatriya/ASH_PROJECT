@@ -3,13 +3,8 @@ name: Android Build Verification
 on:
   push:
     branches: [main, master]
-    paths:
-      - 'android/**'
-      - '.github/workflows/android-build.yml'
   pull_request:
     branches: [main]
-    paths:
-      - 'android/**'
   workflow_dispatch:
 
 permissions:
