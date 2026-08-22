@@ -57,19 +57,9 @@ This document summarizes the authentication system update, database verification
 - **Browser Auto-Sync ([js/supabase-client.js](file:///c:/Users/Hp/Downloads/PROJECT-ASH/js/supabase-client.js#L74-L115))**: Configured `onAuthStateChange` to listen for `'SIGNED_IN'` OAuth events and automatically upsert Google users into the `public.users` PostgreSQL table in Supabase.
 - **Backend API Endpoint ([backend/routes/auth.routes.js](file:///c:/Users/Hp/Downloads/PROJECT-ASH/backend/routes/auth.routes.js#L140-L173))**: Added `POST /api/auth/google-sync` route to synchronize OAuth user profiles via Service Role Key.
 
-### Standalone Mobile App File (Transfer from Laptop to Phone)
-A complete 306 KB standalone application file has been generated on your computer:
-- **Project Folder**: [`c:\Users\Hp\Downloads\PROJECT-ASH\AgroSmartHub_Mobile_App.html`](file:///c:/Users/Hp/Downloads/PROJECT-ASH/AgroSmartHub_Mobile_App.html)
-- **Desktop Copy**: `C:\Users\Hp\Desktop\AgroSmartHub_Mobile_App.html`
-
-#### How to Transfer & Open on Your Android Phone:
-1. **Transfer the file to your Phone**:
-   - Send `AgroSmartHub_Mobile_App.html` via **WhatsApp**, **Google Drive**, **Bluetooth**, or **USB Cable**.
-2. **Open on Phone**:
-   - Tap the file on your phone to open it in **Chrome** or **Safari**.
-   - It will open as a **real-time application** connected to Google Auth & Supabase Database.
-3. **Add to Home Screen**:
-   - Tap the 3 dots in Chrome → select **Add to Home screen**. It will function like a native installed app icon!
+### Google OAuth Profile Avatar Fix
+- **Image Avatar Renderer ([js/app.js](file:///c:/Users/Hp/Downloads/PROJECT-ASH/js/app.js#L54-L125))**: Created `getAvatarHtml(userObj)` helper. When logging in with Google, Google profile photo URLs (`https://lh3.googleusercontent.com/a/...`) are now safely rendered as circular avatar images (`<img>`) instead of printing raw URL text strings across the screen.
+- **Updated Mobile App Bundle**: Re-generated [`AgroSmartHub_Mobile_App.html`](file:///c:/Users/Hp/Downloads/PROJECT-ASH/AgroSmartHub_Mobile_App.html) and updated the Desktop copy.
 
 ### Download & Access Links:
 - **Standalone Mobile App File**: [AgroSmartHub_Mobile_App.html](file:///c:/Users/Hp/Downloads/PROJECT-ASH/AgroSmartHub_Mobile_App.html)
@@ -78,4 +68,4 @@ A complete 306 KB standalone application file has been generated on your compute
 - **Live Web Application (GitHub Pages)**: [SanjayKshatriya.github.io/ASH_PROJECT](https://SanjayKshatriya.github.io/ASH_PROJECT/)
 - **GitHub Actions APK Build Workflow**: [github.com/SanjayKshatriya/ASH_PROJECT/actions](https://github.com/SanjayKshatriya/ASH_PROJECT/actions)
 - **Repository**: [SanjayKshatriya/ASH_PROJECT](https://github.com/SanjayKshatriya/ASH_PROJECT)
-- **Latest Commit**: `b91fb627` - `feat(bundle): add standalone AgroSmartHub_Mobile_App.html for offline transfer to phones`
+- **Latest Commit**: `3913bd95` - `fix(ui): fix Google OAuth avatar URL text overflow on profile and topbar`
