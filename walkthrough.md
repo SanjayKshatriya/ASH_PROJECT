@@ -53,7 +53,17 @@ This document summarizes the authentication system update, database verification
 ============================================================
 ```
 
-## GitHub Synchronization
+### Google Email Authentication & Database Synchronization
+- **Browser Auto-Sync ([js/supabase-client.js](file:///c:/Users/Hp/Downloads/PROJECT-ASH/js/supabase-client.js#L74-L115))**: Configured `onAuthStateChange` to listen for `'SIGNED_IN'` OAuth events and automatically upsert Google users into the `public.users` PostgreSQL table in Supabase.
+- **Backend API Endpoint ([backend/routes/auth.routes.js](file:///c:/Users/Hp/Downloads/PROJECT-ASH/backend/routes/auth.routes.js#L140-L173))**: Added `POST /api/auth/google-sync` route to synchronize OAuth user profiles via Service Role Key.
 
+### GitHub Push Status
+All updates, Google email authentication database synchronization, and asset builds have been committed and pushed to GitHub:
+
+```text
+To https://github.com/SanjayKshatriya/ASH_PROJECT.git
+   6bdf761e..e83255c2  main -> main
+```
 - **Repository**: [SanjayKshatriya/ASH_PROJECT](https://github.com/SanjayKshatriya/ASH_PROJECT)
 - **Branch**: `main`
+- **Latest Commit**: `e83255c2` - `feat(auth): connect Google email authentication and login to Supabase database`
