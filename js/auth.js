@@ -184,7 +184,7 @@ function setupOTPBoxes() {
   });
 }
 
-// ─── LOGIN ─── (Multi-tier: Express Backend → Direct Supabase → Demo Fallback)
+// ─── LOGIN ─── (Real authentication: Express Backend → Direct Supabase)
 async function handleLogin() {
   const email = document.getElementById('loginEmail')?.value?.trim();
   const pw = document.getElementById('loginPassword')?.value;
@@ -196,6 +196,8 @@ async function handleLogin() {
   if (spinner) spinner.style.display = 'block';
 
   try {
+    let lastError = null;
+
     // ── Step 1: Try Express backend (3s timeout) ───────────────
     try {
       const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
@@ -214,6 +216,7 @@ async function handleLogin() {
         showToast(data.error || 'Invalid email or password.', 'error');
         return;
       }
+      lastError = data.error;
     } catch (backendErr) {
       console.warn('Express Backend unreachable, attempting direct Supabase login...');
     }
@@ -227,7 +230,8 @@ async function handleLogin() {
           password: pw
         });
         if (sbError) {
-          console.warn('Supabase signInWithPassword error:', sbError.message);
+          showToast(sbError.message || 'Invalid email or password.', 'error');
+          return;
         } else if (sbData?.session) {
           localStorage.setItem('ash_token', sbData.session.access_token);
           const meta = sbData.user.user_metadata || {};
@@ -246,61 +250,15 @@ async function handleLogin() {
       }
     } catch (sbErr) {
       console.warn('Direct Supabase login error:', sbErr);
+      lastError = sbErr.message;
     }
 
-    // ── Step 3: Local Demo Credentials & Fallback ──────────────
-    const demoAccounts = {
-      'ramu@farmer.com': { name: 'Ramu Kumar', role: 'farmer', mobile: '+91 9876543210', state: 'Tamil Nadu' },
-      'admin@agrismarthub.com': { name: 'Admin User', role: 'admin', mobile: '+91 9000000001', state: 'Delhi' },
-      'priya@buyer.com': { name: 'Priya Krishnaswamy', role: 'buyer', mobile: '+91 9988776655', state: 'Karnataka' },
-      'expert@agri.com': { name: 'Dr. Suresh Patel', role: 'expert', mobile: '+91 9111111111', state: 'Gujarat' }
-    };
-
-    if (demoAccounts[email.toLowerCase()]) {
-      const demoUser = demoAccounts[email.toLowerCase()];
-      showToast('Signed in as Demo User ✅', 'success');
-      loginSuccess({ id: 'DEMO-' + Date.now(), email, ...demoUser });
-      return;
-    }
-
-    // Standard user local login fallback if password >= 6
-    if (pw.length >= 6) {
-      const fallbackUser = {
-        id: 'U-' + Date.now(),
-        email: email,
-        name: email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-        role: 'farmer',
-        mobile: '',
-        state: ''
-      };
-      showToast('Signed in successfully! Welcome 🌱', 'success');
-      loginSuccess(fallbackUser);
-      return;
-    }
-
-    showToast('Login failed. Check your email and password.', 'error');
+    showToast(lastError || 'Login failed. Check your email and password.', 'error');
 
   } finally {
     if (btnText) btnText.style.display = 'inline';
     if (spinner) spinner.style.display = 'none';
   }
-}
-
-// ─── QUICK DEMO LOGIN ───
-function quickLogin(role = 'farmer') {
-  const map = {
-    farmer: { email: 'ramu@farmer.com', name: 'Ramu Kumar', role: 'farmer', mobile: '+91 9876543210', state: 'Tamil Nadu' },
-    buyer: { email: 'priya@buyer.com', name: 'Priya Krishnaswamy', role: 'buyer', mobile: '+91 9988776655', state: 'Karnataka' },
-    expert: { email: 'expert@agri.com', name: 'Dr. Suresh Patel', role: 'expert', mobile: '+91 9111111111', state: 'Gujarat' },
-    admin: { email: 'admin@agrismarthub.com', name: 'Admin User', role: 'admin', mobile: '+91 9000000001', state: 'Delhi' }
-  };
-  const u = map[role] || map.farmer;
-  const emailInput = document.getElementById('loginEmail');
-  const pwInput = document.getElementById('loginPassword');
-  if (emailInput) emailInput.value = u.email;
-  if (pwInput) pwInput.value = 'farmer123';
-  showToast(`Quick connecting as ${u.name} (${u.role.toUpperCase()})…`, 'info');
-  loginSuccess({ id: 'QUICK-' + Date.now(), ...u });
 }
 
 // ─── GOOGLE SUPABASE AUTH ───
@@ -320,25 +278,14 @@ async function handleGoogleLogin() {
         }
       });
       if (error) {
-        console.warn('Supabase Google OAuth notice:', error.message);
-        showToast('Google OAuth notice: ' + error.message, 'warning');
-      } else {
-        return;
+        showToast('Google OAuth error: ' + error.message, 'error');
       }
+      return;
     }
   } catch (err) {
-    console.warn('Supabase Google login attempt:', err);
+    console.error('Supabase Google login attempt error:', err);
   }
-
-  // Fallback demo Google user session
-  showToast('Signed in with Google Account ✅', 'success');
-  loginSuccess({
-    id: 'GOOGLE-' + Date.now(),
-    name: 'Google User (AgroSmart)',
-    email: 'user.google@agrismarthub.com',
-    role: selectedRole || 'farmer',
-    avatar: 'GU'
-  });
+  showToast('Google authentication is not available.', 'error');
 }
 
 // ─── DYNAMIC USER FORMATTER ───
@@ -376,7 +323,7 @@ function loginSuccess(user) {
   }, 800);
 }
 
-// ─── REGISTER ─── (Multi-tier: Express Backend → Direct Supabase → Local Fallback)
+// ─── REGISTER ─── (Real authentication: Express Backend → Direct Supabase)
 async function handleRegister() {
   const terms = document.getElementById('regTerms')?.checked;
   if (!terms) { showToast('Please accept Terms & Conditions', 'error'); return; }
@@ -398,6 +345,8 @@ async function handleRegister() {
   if (spinner) spinner.style.display = 'block';
   
   try {
+    let lastError = null;
+
     // ── Step 1: Try Express Backend (3s timeout) ───────────────
     try {
       const res = await fetch(`${BACKEND_URL}/api/auth/register`, {
@@ -433,6 +382,7 @@ async function handleRegister() {
         showToast(errorMsg, 'error');
         return;
       }
+      lastError = data.error;
     } catch (backendErr) {
       console.warn('Express Backend unreachable for register, trying direct Supabase client...');
     }
@@ -450,7 +400,8 @@ async function handleRegister() {
         });
 
         if (sbError) {
-          console.warn('Supabase signUp error:', sbError.message);
+          showToast(sbError.message || 'Registration failed.', 'error');
+          return;
         } else if (sbData?.user) {
           if (sbData.session) localStorage.setItem('ash_token', sbData.session.access_token);
           showToast('Account created via Supabase! Welcome 🌱', 'success');
@@ -471,22 +422,10 @@ async function handleRegister() {
       }
     } catch (sbErr) {
       console.warn('Direct Supabase registration error:', sbErr);
+      lastError = sbErr.message;
     }
 
-    // ── Step 3: Local Session creation fallback ──────────────
-    const localUser = {
-      id: 'REG-' + Date.now(),
-      name: name,
-      email: email,
-      role: selectedRole,
-      mobile: mobile,
-      state: state,
-      farmName: document.getElementById('regFarmName')?.value || `${name}'s Farm`,
-      certCount: 0,
-      totalSales: 0
-    };
-    showToast('Account created successfully! Welcome to AgroSmartHub 🌱', 'success');
-    loginSuccess(localUser);
+    showToast(lastError || 'Registration failed. Check network or server connection.', 'error');
 
   } catch (err) {
     console.error('Register crash:', err);
