@@ -57,13 +57,12 @@ This document summarizes the authentication system update, database verification
 - **Browser Auto-Sync ([js/supabase-client.js](file:///c:/Users/Hp/Downloads/PROJECT-ASH/js/supabase-client.js#L74-L115))**: Configured `onAuthStateChange` to listen for `'SIGNED_IN'` OAuth events and automatically upsert Google users into the `public.users` PostgreSQL table in Supabase.
 - **Backend API Endpoint ([backend/routes/auth.routes.js](file:///c:/Users/Hp/Downloads/PROJECT-ASH/backend/routes/auth.routes.js#L140-L173))**: Added `POST /api/auth/google-sync` route to synchronize OAuth user profiles via Service Role Key.
 
-### GitHub Push Status
-All updates, Google email authentication database synchronization, and asset builds have been committed and pushed to GitHub:
+### Android App & APK Build
+- **Web App Bundling ([scripts/sync_web_assets.js](file:///c:/Users/Hp/Downloads/PROJECT-ASH/scripts/sync_web_assets.js))**: All web pages (`index.html`, `app.html`, `js/`, `css/`, `sw.js`) are bundled into `android/app/src/main/assets/` as a native Android WebView app.
+- **Automated Cloud APK Build ([.github/workflows/android-build.yml](file:///c:/Users/Hp/Downloads/PROJECT-ASH/.github/workflows/android-build.yml))**: GitHub Actions automatically compiles the Android APK (`app-debug.apk`) on every push.
 
-```text
-To https://github.com/SanjayKshatriya/ASH_PROJECT.git
-   6bdf761e..e83255c2  main -> main
-```
+### Download & Access Links:
+- **Live Web Application (GitHub Pages)**: [SanjayKshatriya.github.io/ASH_PROJECT](https://SanjayKshatriya.github.io/ASH_PROJECT/)
+- **GitHub Actions APK Build Workflow**: [github.com/SanjayKshatriya/ASH_PROJECT/actions](https://github.com/SanjayKshatriya/ASH_PROJECT/actions)
 - **Repository**: [SanjayKshatriya/ASH_PROJECT](https://github.com/SanjayKshatriya/ASH_PROJECT)
-- **Branch**: `main`
-- **Latest Commit**: `e83255c2` - `feat(auth): connect Google email authentication and login to Supabase database`
+- **Latest Commit**: `6af690e7` - `build: trigger cloud Android APK build for web app assets`
