@@ -10,8 +10,13 @@ let sidebarCollapsed = false;
 window.addEventListener('DOMContentLoaded', () => {
   currentUser = Session.get('user');
   if (!currentUser) {
-    // Redirect to landing if not logged in
-    showToast('Please sign in to continue', 'error');
+    const saved = localStorage.getItem('ash_user');
+    if (saved) {
+      try { currentUser = JSON.parse(saved); } catch (_) {}
+    }
+  }
+  if (!currentUser) {
+    showToast('Please sign in to access your account', 'error');
     setTimeout(() => { window.location.href = 'index.html'; }, 1200);
     return;
   }

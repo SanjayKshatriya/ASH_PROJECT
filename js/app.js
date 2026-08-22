@@ -16,23 +16,9 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
   if (!currentUser) {
-    // Auto-connect default demo user so opening app.html directly always connects seamlessly
-    currentUser = {
-      id: 'F-20261001',
-      name: 'Ramu Kumar',
-      email: 'ramu@farmer.com',
-      role: 'farmer',
-      mobile: '+91 9876543210',
-      state: 'Tamil Nadu',
-      avatar: 'RK',
-      avatarColor: '#16a34a',
-      verified: true,
-      certCount: 1,
-      totalSales: 45000,
-      farmName: "Ramu's Green Agro Farm"
-    };
-    if (typeof Session !== 'undefined') Session.set('user', currentUser);
-    else localStorage.setItem('ash_user', JSON.stringify(currentUser));
+    showToast('Please sign in to access your account', 'error');
+    setTimeout(() => { window.location.href = 'index.html'; }, 1200);
+    return;
   }
   bootApp();
 });

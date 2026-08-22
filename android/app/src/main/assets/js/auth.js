@@ -196,17 +196,19 @@ async function handleLogin() {
   if (spinner) spinner.style.display = 'block';
 
   try {
-    // ── Step 1: Try Express backend ──────────────────────────
+    let lastError = null;
+
+    // ── Step 1: Try Express backend (3s timeout) ───────────────
     try {
       const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password: pw }),
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(3000)
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        localStorage.setItem('ash_token', data.token);
+        if (data.token) localStorage.setItem('ash_token', data.token);
         loginSuccess(data.user);
         return;
       }
@@ -214,44 +216,76 @@ async function handleLogin() {
         showToast(data.error || 'Invalid email or password.', 'error');
         return;
       }
+      lastError = data.error;
     } catch (backendErr) {
-      console.warn('Backend unreachable, trying direct Supabase login...');
+      console.warn('Express Backend unreachable, attempting direct Supabase login...');
     }
 
     // ── Step 2: Direct Supabase browser client ───────────────
-    await window.supabaseClientReady;
-    if (window.supabaseClient) {
-      const { data: sbData, error: sbError } = await window.supabaseClient.auth.signInWithPassword({
-        email,
-        password: pw
-      });
-      if (sbError) {
-        showToast(sbError.message || 'Invalid email or password.', 'error');
-        return;
+    try {
+      await window.supabaseClientReady;
+      if (window.supabaseClient) {
+        const { data: sbData, error: sbError } = await window.supabaseClient.auth.signInWithPassword({
+          email,
+          password: pw
+        });
+        if (sbError) {
+          showToast(sbError.message || 'Invalid email or password.', 'error');
+          return;
+        } else if (sbData?.session) {
+          localStorage.setItem('ash_token', sbData.session.access_token);
+          const meta = sbData.user.user_metadata || {};
+          const user = {
+            id:    sbData.user.id,
+            email: sbData.user.email,
+            name:  meta.name  || 'User',
+            role:  meta.role  || 'farmer',
+            state: meta.state || '',
+            mobile: meta.mobile || ''
+          };
+          showToast('Signed in via Supabase ✅', 'success');
+          loginSuccess(user);
+          return;
+        }
       }
-      if (sbData?.session) {
-        localStorage.setItem('ash_token', sbData.session.access_token);
-        const meta = sbData.user.user_metadata || {};
-        const user = {
-          id:    sbData.user.id,
-          email: sbData.user.email,
-          name:  meta.name  || 'User',
-          role:  meta.role  || 'farmer',
-          state: meta.state || '',
-          mobile: meta.mobile || ''
-        };
-        showToast('Signed in via Supabase ✅', 'success');
-        loginSuccess(user);
-        return;
-      }
+    } catch (sbErr) {
+      console.warn('Direct Supabase login error:', sbErr);
+      lastError = sbErr.message;
     }
 
-    showToast('Login failed. Unable to authenticate credentials.', 'error');
+    showToast(lastError || 'Login failed. Check your email and password.', 'error');
 
   } finally {
     if (btnText) btnText.style.display = 'inline';
     if (spinner) spinner.style.display = 'none';
   }
+}
+
+// ─── GOOGLE SUPABASE AUTH ───
+async function handleGoogleLogin() {
+  showToast('Connecting to Google OAuth...', 'info');
+  try {
+    await window.supabaseClientReady;
+    if (window.supabaseClient) {
+      const targetRedirect = window.location.protocol === 'file:' 
+        ? 'http://localhost:5000/app.html' 
+        : `${window.location.origin}/app.html`;
+
+      const { data, error } = await window.supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: targetRedirect
+        }
+      });
+      if (error) {
+        showToast('Google OAuth error: ' + error.message, 'error');
+      }
+      return;
+    }
+  } catch (err) {
+    console.error('Supabase Google login attempt error:', err);
+  }
+  showToast('Google authentication is not available.', 'error');
 }
 
 // ─── DYNAMIC USER FORMATTER ───
@@ -280,15 +314,16 @@ function formatUserObj(userData) {
 // ─── LOGIN SUCCESS ───
 function loginSuccess(user) {
   const formattedUser = formatUserObj(user);
-  Session.set('user', formattedUser);
+  if (typeof Session !== 'undefined') Session.set('user', formattedUser);
+  else localStorage.setItem('ash_user', JSON.stringify(formattedUser));
   closeAuth();
   showToast(`Welcome, ${formattedUser.name}! 🌾`, 'success');
   setTimeout(() => {
     window.location.href = 'app.html';
-  }, 1000);
+  }, 800);
 }
 
-// ─── REGISTER ───
+// ─── REGISTER ─── (Real authentication: Express Backend → Direct Supabase)
 async function handleRegister() {
   const terms = document.getElementById('regTerms')?.checked;
   if (!terms) { showToast('Please accept Terms & Conditions', 'error'); return; }
@@ -310,42 +345,91 @@ async function handleRegister() {
   if (spinner) spinner.style.display = 'block';
   
   try {
-    const res = await fetch(`${BACKEND_URL}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, mobile, password, state, role: selectedRole })
-    });
-    const data = await res.json();
-    
-    if (res.ok && data.success) {
-      if (data.requiresEmailVerification || !data.token) {
-        showToast(data.message || 'Account created! Please check your email inbox to verify your account before logging in. 📧', 'info', 6000);
-        setTimeout(() => { showLoginForm(); }, 2000);
+    let lastError = null;
+
+    // ── Step 1: Try Express Backend (3s timeout) ───────────────
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, mobile, password, state, role: selectedRole }),
+        signal: AbortSignal.timeout(3000)
+      });
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        if (data.requiresEmailVerification || (!data.token && !data.user)) {
+          showToast(data.message || 'Account created! Please check your email inbox 📧', 'info', 6000);
+          setTimeout(() => { showLoginForm(); }, 2000);
+          return;
+        }
+
+        if (data.token) localStorage.setItem('ash_token', data.token);
+        showToast('Account created successfully! Welcome to AgroSmartHub 🌱', 'success');
+
+        const user = {
+          ...data.user,
+          farmName: document.getElementById('regFarmName')?.value || `${name}'s Farm`,
+          certCount: 0,
+          totalSales: 0
+        };
+
+        loginSuccess(user);
+        return;
+
+      } else if (res.status === 400 || res.status === 409) {
+        const errorMsg = data.error || (data.errors && data.errors[0]?.msg) || 'Registration failed.';
+        showToast(errorMsg, 'error');
         return;
       }
-
-      if (data.token) localStorage.setItem('ash_token', data.token);
-      showToast('Account created successfully! Welcome to AgroSmartHub 🌱', 'success');
-
-      const user = {
-        ...data.user,
-        farmName: document.getElementById('regFarmName')?.value || 'My Farm',
-        certCount: 0,
-        totalSales: 0
-      };
-
-      if (typeof Session !== 'undefined') Session.set('user', user);
-      else localStorage.setItem('ash_user', JSON.stringify(user));
-
-      setTimeout(() => { window.location.href = 'app.html'; }, 1200);
-
-    } else {
-      const errorMsg = data.error || (data.errors && data.errors[0]?.msg) || 'Registration failed.';
-      showToast(errorMsg, 'error');
+      lastError = data.error;
+    } catch (backendErr) {
+      console.warn('Express Backend unreachable for register, trying direct Supabase client...');
     }
+
+    // ── Step 2: Direct Supabase browser client ───────────────
+    try {
+      await window.supabaseClientReady;
+      if (window.supabaseClient) {
+        const { data: sbData, error: sbError } = await window.supabaseClient.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { name, role: selectedRole, mobile, state }
+          }
+        });
+
+        if (sbError) {
+          showToast(sbError.message || 'Registration failed.', 'error');
+          return;
+        } else if (sbData?.user) {
+          if (sbData.session) localStorage.setItem('ash_token', sbData.session.access_token);
+          showToast('Account created via Supabase! Welcome 🌱', 'success');
+          const user = {
+            id: sbData.user.id,
+            email: sbData.user.email,
+            name: name,
+            role: selectedRole,
+            mobile: mobile,
+            state: state,
+            farmName: document.getElementById('regFarmName')?.value || `${name}'s Farm`,
+            certCount: 0,
+            totalSales: 0
+          };
+          loginSuccess(user);
+          return;
+        }
+      }
+    } catch (sbErr) {
+      console.warn('Direct Supabase registration error:', sbErr);
+      lastError = sbErr.message;
+    }
+
+    showToast(lastError || 'Registration failed. Check network or server connection.', 'error');
+
   } catch (err) {
-    console.error('Register error:', err);
-    showToast('Cannot reach server. Make sure backend is running on port 5000.', 'error');
+    console.error('Register crash:', err);
+    showToast('Registration error occurred.', 'error');
   } finally {
     if (btnText) btnText.style.display = 'inline';
     if (spinner) spinner.style.display = 'none';
