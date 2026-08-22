@@ -51,6 +51,23 @@ function bootApp() {
   }, 2200);
 }
 
+// ─── AVATAR HELPER ───
+function getAvatarHtml(userObj) {
+  if (!userObj) return 'U';
+  const name = userObj.name || 'User';
+  let avatar = userObj.avatar;
+  
+  if (avatar && typeof avatar === 'string' && (avatar.startsWith('http://') || avatar.startsWith('https://'))) {
+    return `<img src="${avatar}" alt="${name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" onerror="this.onerror=null;this.parentElement.textContent='${name.substring(0,2).toUpperCase()}';" />`;
+  }
+  if (avatar && typeof avatar === 'string' && avatar.includes('<img')) {
+    return avatar;
+  }
+  
+  const parts = name.split(' ').filter(Boolean);
+  return parts.length > 1 ? (parts[0][0] + parts[1][0]).toUpperCase() : name.substring(0, 2).toUpperCase();
+}
+
 // ─── SIDEBAR ───
 function renderSidebar() {
   const role = currentUser.role;
@@ -60,7 +77,7 @@ function renderSidebar() {
   const userEl = document.getElementById('sidebarUser');
   if (userEl) {
     userEl.innerHTML = `
-      <div class="user-avatar-sm" style="background:${currentUser.avatarColor||'#16a34a'}">${currentUser.avatar}</div>
+      <div class="user-avatar-sm" style="background:${currentUser.avatarColor||'#16a34a'};overflow:hidden;display:flex;align-items:center;justify-content:center">${getAvatarHtml(currentUser)}</div>
       <div class="user-info-sm">
         <div class="user-name-sm">${currentUser.name}</div>
         <span class="user-role-sm">${capitalize(currentUser.role)}</span>
@@ -114,8 +131,15 @@ function toggleMobileSidebar() {
 function renderTopbar() {
   const avatar = document.getElementById('topbarAvatar');
   if (avatar) {
-    avatar.textContent = currentUser.avatar;
-    avatar.style.background = `linear-gradient(135deg, ${currentUser.avatarColor||'#16a34a'}, #0d9488)`;
+    avatar.style.overflow = 'hidden';
+    const isImg = currentUser.avatar && (currentUser.avatar.startsWith('http') || currentUser.avatar.includes('<img'));
+    if (isImg) {
+      avatar.innerHTML = getAvatarHtml(currentUser);
+      avatar.style.background = 'transparent';
+    } else {
+      avatar.textContent = getAvatarHtml(currentUser);
+      avatar.style.background = `linear-gradient(135deg, ${currentUser.avatarColor||'#16a34a'}, #0d9488)`;
+    }
   }
 }
 
@@ -747,7 +771,7 @@ function renderProfile(container) {
     <div style="display:grid;grid-template-columns:320px 1fr;gap:24px;max-width:1000px" id="profileGrid">
       <div>
         <div class="farmer-profile-card">
-          <div class="profile-avatar" style="background:linear-gradient(135deg,${currentUser.avatarColor||'#16a34a'},#0d9488)">${currentUser.avatar}</div>
+          <div class="profile-avatar" style="background:linear-gradient(135deg,${currentUser.avatarColor||'#16a34a'},#0d9488);overflow:hidden;display:flex;align-items:center;justify-content:center">${getAvatarHtml(currentUser)}</div>
           <div class="profile-name">${currentUser.name}</div>
           <div class="profile-id">${currentUser.id}</div>
           <div class="profile-badges">
