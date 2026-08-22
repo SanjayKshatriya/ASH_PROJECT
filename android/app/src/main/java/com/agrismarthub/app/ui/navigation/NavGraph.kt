@@ -24,6 +24,7 @@ object Routes {
     const val CERTIFICATES = "certificates"
     const val ORDERS = "orders"
     const val NOTIFICATIONS = "notifications"
+    const val WEB_APP = "web_app"
 }
 
 @Composable
@@ -38,16 +39,23 @@ fun AppNavGraph(
         composable(Routes.SPLASH) {
             SplashScreen(
                 onNavigateToLogin = {
-                    navController.navigate(Routes.LOGIN) {
+                    navController.navigate(Routes.WEB_APP) {
                         popUpTo(Routes.SPLASH) { inclusive = true }
                     }
                 },
                 onNavigateToDashboard = {
-                    navController.navigate(Routes.DASHBOARD) {
+                    navController.navigate(Routes.WEB_APP) {
                         popUpTo(Routes.SPLASH) { inclusive = true }
                     }
                 },
                 authViewModel = authViewModel
+            )
+        }
+
+        composable(Routes.WEB_APP) {
+            com.agrismarthub.app.ui.screens.WebViewScreen(
+                url = "file:///android_asset/app.html",
+                onBack = null
             )
         }
 
@@ -57,7 +65,7 @@ fun AppNavGraph(
                     navController.navigate(Routes.REGISTER)
                 },
                 onLoginSuccess = {
-                    navController.navigate(Routes.DASHBOARD) {
+                    navController.navigate(Routes.WEB_APP) {
                         popUpTo(Routes.LOGIN) { inclusive = true }
                     }
                 },
@@ -71,7 +79,7 @@ fun AppNavGraph(
                     navController.navigateUp()
                 },
                 onRegisterSuccess = {
-                    navController.navigate(Routes.DASHBOARD) {
+                    navController.navigate(Routes.WEB_APP) {
                         popUpTo(Routes.LOGIN) { inclusive = true }
                     }
                 },
@@ -86,7 +94,7 @@ fun AppNavGraph(
                 onLogout = {
                     authViewModel.logout()
                     navController.navigate(Routes.LOGIN) {
-                        popUpTo(0) { inclusive = true } // Clear all
+                        popUpTo(0) { inclusive = true }
                     }
                 },
                 onNavigateToFeature = { route ->
@@ -118,7 +126,15 @@ fun AppNavGraph(
                 onBack = { navController.navigateUp() }
             )
         }
-        composable(Routes.CERTIFICATES) { /* TODO - Next Phase */ }
-        composable(Routes.ORDERS) { /* TODO - Next Phase */ }
+        composable(Routes.CERTIFICATES) {
+            com.agrismarthub.app.ui.screens.CertificatesScreen(
+                onBack = { navController.navigateUp() }
+            )
+        }
+        composable(Routes.ORDERS) {
+            com.agrismarthub.app.ui.screens.OrdersScreen(
+                onBack = { navController.navigateUp() }
+            )
+        }
     }
 }

@@ -12,10 +12,14 @@ echo    AgroSmartHub 3.0 - Building Android APK
 echo  ============================================
 echo.
 
+echo [1/3] Syncing latest web assets...
+call node "%~dp0scripts\sync_web_assets.js"
+
 :: Change to the android directory
 cd /d "%~dp0android"
 
-echo [1/3] Checking Java installation...
+echo.
+echo [2/3] Checking Java installation...
 java -version
 if %errorlevel% neq 0 (
     echo ERROR: Java is not installed or not in PATH.
@@ -25,7 +29,7 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [2/3] Compiling and Building the APK (This may take a few minutes)...
+echo [3/3] Compiling and Building the APK (This may take a few minutes)...
 call gradlew.bat assembleDebug
 
 if %errorlevel% neq 0 (

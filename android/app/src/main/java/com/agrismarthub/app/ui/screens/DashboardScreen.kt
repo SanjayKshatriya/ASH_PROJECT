@@ -144,7 +144,8 @@ fun QuickActionsGrid(onNavigateToFeature: (String) -> Unit) {
         Pair("IoT Monitor", "📡") to Routes.IOT_MONITOR,
         Pair("Marketplace", "🛒") to Routes.MARKETPLACE,
         Pair("Certificates", "🏅") to Routes.CERTIFICATES,
-        Pair("Orders", "📦") to Routes.ORDERS
+        Pair("Orders", "📦") to Routes.ORDERS,
+        Pair("Full Web App", "🌐") to Routes.WEB_APP
     )
 
     // A simple grid implementation

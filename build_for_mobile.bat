@@ -9,6 +9,9 @@ echo.
 set JAVA_HOME=C:\Program Files\Android\Android Studio\jbr
 set PATH=%JAVA_HOME%\bin;%PATH%
 
+echo Syncing latest web application assets...
+call node scripts\sync_web_assets.js
+
 cd android
 call gradlew.bat assembleDebug
 
