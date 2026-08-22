@@ -71,12 +71,49 @@
 
       console.log('✅ Supabase browser client initialized:', supabaseUrl);
 
-      // Listen for auth state changes (e.g. password recovery link click)
-      window.supabaseClient.auth.onAuthStateChange((event) => {
+      // Listen for auth state changes (Google OAuth, Email Sign-in, Password Recovery)
+      window.supabaseClient.auth.onAuthStateChange(async (event, session) => {
         if (event === 'PASSWORD_RECOVERY') {
           if (typeof showResetPasswordForm === 'function') {
             showResetPasswordForm();
           }
+        } else if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session?.user) {
+          localStorage.setItem('ash_token', session.access_token);
+          const u = session.user;
+          const meta = u.user_metadata || {};
+          const name = meta.full_name || meta.name || (u.email ? u.email.split('@')[0] : 'Google User');
+          const role = meta.role || 'farmer';
+          
+          // Auto-sync Google / OAuth user profile to Supabase database
+          try {
+            const { error: upsertErr } = await window.supabaseClient.from('users').upsert([{
+              id: u.id,
+              email: u.email,
+              name: name,
+              role: role,
+              is_active: true
+            }], { onConflict: 'id' });
+
+            if (!upsertErr) {
+              console.log('✅ Google/Supabase user profile synced to database:', u.email);
+            }
+          } catch (syncErr) {
+            console.warn('Database profile sync notice:', syncErr.message);
+          }
+
+          const formattedUser = {
+            id: u.id,
+            email: u.email || '',
+            name: name,
+            role: role,
+            mobile: meta.mobile || '',
+            state: meta.state || '',
+            avatar: meta.avatar_url || name.substring(0, 2).toUpperCase(),
+            verified: true
+          };
+
+          if (typeof Session !== 'undefined') Session.set('user', formattedUser);
+          else localStorage.setItem('ash_user', JSON.stringify(formattedUser));
         }
       });
 
@@ -84,7 +121,7 @@
       const { data: { session } } = await window.supabaseClient.auth.getSession();
       if (session) {
         localStorage.setItem('ash_token', session.access_token);
-        console.log('✅ Supabase session restored for:', session.user.email);
+        console.log('✅ Supabase session active for:', session.user.email);
       }
 
     } catch (err) {

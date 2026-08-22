@@ -138,6 +138,41 @@ router.post('/login', [
   }
 });
 
+// ─── POST /api/auth/google-sync ────────────────────────────────
+router.post('/google-sync', async (req, res) => {
+  try {
+    const { id, email, name, role = 'farmer', mobile = '', state = '' } = req.body;
+    if (!id || !email) {
+      return res.status(400).json({ error: 'Missing user ID or Email' });
+    }
+
+    console.log(`🌐 Google Auth DB Sync: ${email} (${id})`);
+
+    const { error: dbError } = await supabase
+      .from('users')
+      .upsert([{
+        id,
+        email,
+        name: name || email.split('@')[0],
+        role: ['farmer','buyer','expert','admin','delivery'].includes(role) ? role : 'farmer',
+        mobile: mobile || null,
+        state: state || null,
+        is_active: true
+      }], { onConflict: 'id' });
+
+    if (dbError) {
+      console.error('❌ Google DB sync error:', dbError.message);
+      return res.status(500).json({ error: dbError.message });
+    }
+
+    console.log(`✅ Google user profile synchronized to Supabase DB: ${email}`);
+    return res.json({ success: true, message: 'Google profile synced to database' });
+  } catch (err) {
+    console.error('❌ Google sync endpoint crash:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── POST /api/auth/send-otp ───────────────────────────────────
 router.post('/send-otp', async (req, res) => {
   const { mobile } = req.body;
