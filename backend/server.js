@@ -95,10 +95,10 @@ app.use((err, req, res, next) => {
 });
 
 // ─── START SERVER ─────────────────────────────────────────
-app.listen(PORT, async () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n🌾 AgroSmartHub Backend v3.0.0`);
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📡 API available at http://localhost:${PORT}/api`);
+  console.log(`🚀 Local PC: http://localhost:${PORT}`);
+  console.log(`📡 Mobile Wi-Fi Access: http://172.23.48.197:${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}\n`);
 
   // ── Verify Supabase connection on startup ──
